@@ -70,8 +70,11 @@ class AiClient(private val context: Context) {
 
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    val errBody = response.body?.string()?.take(150) ?: ""
-                    return@withContext Pair(false, "HTTP ${response.code} 错误: $errBody")
+                    val errBody = response.body?.string()?.take(200) ?: ""
+                    val tip = if (response.code == 402 || errBody.contains("insufficient") || errBody.contains("30001")) {
+                        "\n💡 账户余额不足(code:30001)：硅基流动额度已耗尽。请前往 cloud.siliconflow.cn 充值或领取赠送额度，或切换至免费模型；清空Key时系统将自动启用内置离线循证引擎！"
+                    } else ""
+                    return@withContext Pair(false, "HTTP ${response.code} 错误: $errBody$tip")
                 }
                 val respStr = response.body?.string() ?: ""
                 val jsonObject = gson.fromJson(respStr, JsonObject::class.java)

@@ -215,22 +215,109 @@ $todayInput
     }
 
     /**
-     * 离线角色初始生成
+     * 离线角色初始生成（当无网络、未填 API Key 或余额不足时自动触发，循证量化五维属性与特质）
      */
     fun createDefaultGenesis(userInput: String): CharacterGenesisResult {
+        val lower = userInput.lowercase()
+        val tecBase: Int
+        val vitBase: Int
+        val sanBase: Int
+        val goldBase: Int
+        val relBase: Int
+        val title: String
+        val commentary: String
+        val traits = mutableListOf<TraitItem>()
+
+        when {
+            lower.any { it in "代码编程开发软件架构算法工黑客极客技术前端后端" } -> {
+                title = "全栈极客·代码破壁者"
+                tecBase = 38
+                vitBase = 22
+                sanBase = 26
+                goldBase = 28
+                relBase = 20
+                commentary = "以代码为砖石，你在现实世界构筑逻辑秩序与技术护城河。《高性价比人生指南》建议在深耕硬核技能的同时，严密防护久坐风险与天时作息。"
+                traits.add(TraitItem("逻辑心流", "深度脑力心流专注度+15%，技术攻坚效率提升", isDebuff = false))
+                traits.add(TraitItem("久坐预警", "需重点关注日间活动量与颈椎保护", isDebuff = true))
+            }
+            lower.any { it in "考公体制上岸公考编制行测申论机关事业单位" } -> {
+                title = "上岸破局·铁规行者"
+                tecBase = 32
+                vitBase = 25
+                sanBase = 36
+                goldBase = 24
+                relBase = 26
+                commentary = "志在体制破局与稳定扎根。结构化思维与抗压定力是你的核心武器，行稳致远，知识的厚积与心力的坚韧将助你跨越千军万马。"
+                traits.add(TraitItem("申论定力", "长周期抗压耐力与结构化思维+15%", isDebuff = false))
+                traits.add(TraitItem("阶段性内耗", "备考高压期易产生精神内耗，需呵护心力安全垫", isDebuff = true))
+            }
+            lower.any { it in "跑健身运动体魄马拉松体能自律锻炼游泳骑行" } -> {
+                title = "淬体行者·自律引擎"
+                tecBase = 24
+                vitBase = 42
+                sanBase = 32
+                goldBase = 22
+                relBase = 24
+                commentary = "身体是承受命运之重的神殿。高水平的体能与多巴胺正循环，是你探索现实世界最高确定性复利的护城河底座。"
+                traits.add(TraitItem("强健体魄", "抗衰老生命流速减缓，精力回复速度提升", isDebuff = false))
+                traits.add(TraitItem("多巴胺正循环", "通过运动快速清除皮质醇，心流更平稳", isDebuff = false))
+            }
+            lower.any { it in "投资理财金融资产记账定投基金现金流股票" } -> {
+                title = "稳健精算·防御操盘手"
+                tecBase = 30
+                vitBase = 24
+                sanBase = 28
+                goldBase = 42
+                relBase = 22
+                commentary = "防御先于进攻，复利胜过暴利。严谨的资产规划与6个月以上应急备用金，赋予你面对任何风浪的从容底气。"
+                traits.add(TraitItem("复利直觉", "财富防御与风险厌恶本能，防意外致贫", isDebuff = false))
+                traits.add(TraitItem("理性节制", "消费诱惑免疫力提升，强制储蓄率极佳", isDebuff = false))
+            }
+            lower.any { it in "自由设计创意插画艺术游民自媒体写作摄影" } -> {
+                title = "灵感漫步·自由创作者"
+                tecBase = 32
+                vitBase = 24
+                sanBase = 26
+                goldBase = 24
+                relBase = 36
+                commentary = "以独特的视角洞察世界。保持敏锐与自由心境，深度社交与作品复利正在把你的日常雕刻成独一无二的作品。"
+                traits.add(TraitItem("灵感心流", "跨界创造力与深度表达加成+15%", isDebuff = false))
+                traits.add(TraitItem("现金流波动", "需建立充足的自由职业现金流缓冲池", isDebuff = true))
+            }
+            lower.any { it in "极简清修冥想静心读书考研学术研究生" } -> {
+                title = "从容笃定·笃志求索者"
+                tecBase = 35
+                vitBase = 25
+                sanBase = 35
+                goldBase = 22
+                relBase = 22
+                commentary = "沉潜蓄势，知行合一。在浮躁的世界中坚守深度思考与极简主义，每一份积累都在为未来的跃迁注入底蕴。"
+                traits.add(TraitItem("澄澈心智", "抗信息过载与抗干扰能力极强", isDebuff = false))
+                traits.add(TraitItem("厚积薄发", "长期主义复利型成长路线", isDebuff = false))
+            }
+            else -> {
+                title = "启程探索者·循证行者"
+                tecBase = 26
+                vitBase = 26
+                sanBase = 26
+                goldBase = 24
+                relBase = 24
+                commentary = "根据你的现实坐标，初始五维已均衡建立。真实人生的每一份认真记录，都将在此处化作可感知的力量。"
+                traits.add(TraitItem("觉醒新手", "初入人生Online，经验获取效率+5%", isDebuff = false))
+                traits.add(TraitItem("习惯探索中", "每日任务打卡将强化意志韧性", isDebuff = false))
+            }
+        }
+
         return CharacterGenesisResult(
-            title = "启程探索者",
+            title = title,
             level = 1,
-            tec = 25,
-            vit = 25,
-            san = 25,
-            gold = 20,
-            rel = 20,
-            commentary = "根据你的过往背景，初始五维已均衡建立。前路漫漫，真实人生的每一份认真记录都会在此处化作可感知的力量。",
-            initialTraits = listOf(
-                TraitItem("觉醒新手", "初入人生Online，经验获取效率+5%", isDebuff = false),
-                TraitItem("习惯探索中", "每日任务打卡将强化意志韧性", isDebuff = false)
-            )
+            tec = tecBase,
+            vit = vitBase,
+            san = sanBase,
+            gold = goldBase,
+            rel = relBase,
+            commentary = commentary,
+            initialTraits = traits
         )
     }
 

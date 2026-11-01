@@ -451,7 +451,7 @@ fun SettingsScreen(
                 shape = RoundedCornerShape(4.dp),
                 border = androidx.compose.foundation.BorderStroke(1.2.dp, if (isCartridge) CartridgeAccentRed else RetroRed)
             ) {
-                Text("[ ★ 重铸角色人生档案 · 开启 6 步 AI 问询测评 ]", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text("[ ★ 重铸角色人生档案 · 支持 AI 一键生成 / 6步测评 ]", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         }
 
