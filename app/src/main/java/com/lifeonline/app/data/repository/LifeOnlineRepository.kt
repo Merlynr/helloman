@@ -40,9 +40,13 @@ class LifeOnlineRepository(
      * 角色初始化（经历录入 -> AI 生成五维属性与天生特质）
      */
     suspend fun initializeCharacter(historyInput: String): CharacterGenesisResult {
-        // 优先通过电脑端 Agent Daemon 计算并持久化，若未连接则优雅降级为本地规则
-        val daemonResult = daemonClient.genesis(historyInput)
-        val result = daemonResult ?: aiClient.generateCharacterGenesis(historyInput)
+        // 若配置了云端大模型 API Key (如智谱/DeepSeek)，优先直连云端大模型 (免开电脑、极速响应)
+        val result = if (aiClient.apiKey.isNotBlank()) {
+            aiClient.generateCharacterGenesis(historyInput)
+        } else {
+            val daemonResult = daemonClient.genesis(historyInput)
+            daemonResult ?: aiClient.generateCharacterGenesis(historyInput)
+        }
 
         val newStats = UserStats(
             id = 1,
@@ -95,9 +99,13 @@ class LifeOnlineRepository(
 
         // 获取已完成任务
         val allTasks = mutableListOf<String>()
-        // 优先通过电脑端 Agent Daemon 结算并沉淀长程知识库档案
-        val daemonResult = daemonClient.settle(todayStr, rawInput, stepCount, allTasks)
-        val result = daemonResult ?: aiClient.generateDailySettlement(currentStats, rawInput, stepCount, allTasks)
+        // 若配置了云端 API Key，优先直连云端大模型；否则优先电脑端 Daemon，最后离线规则
+        val result = if (aiClient.apiKey.isNotBlank()) {
+            aiClient.generateDailySettlement(currentStats, rawInput, stepCount, allTasks)
+        } else {
+            val daemonResult = daemonClient.settle(todayStr, rawInput, stepCount, allTasks)
+            daemonResult ?: aiClient.generateDailySettlement(currentStats, rawInput, stepCount, allTasks)
+        }
 
         // 经验累加与升级判定
         var newExp = currentStats.exp + result.expGained

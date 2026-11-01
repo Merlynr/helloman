@@ -1,7 +1,13 @@
 package com.lifeonline.app.ui.screens.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -115,14 +121,69 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         // 1. 大模型 API 配置 (LLM API Configuration)
-        RetroContainer(title = "AI 模型服务配置", subtitle = "CONFIG") {
+        RetroContainer(title = "AI 模型服务配置 (国内直连·全天候)", subtitle = "CONFIG") {
             Text(
-                text = "支持任意兼容 OpenAI 接口协议的服务商 (如 DeepSeek、通义千问、Kimi、GLM、Ollama 等)。未填写时将自动使用内置离线规则引擎，保证功能随时可用。",
+                text = "支持国内主流大模型。配置后手机将直接连接云端模型，无需开电脑，24小时随时推演结算！",
                 color = RetroGreenText.copy(alpha = 0.7f),
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
                 lineHeight = 16.sp
             )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 一键预设切换按钮
+            Text(
+                text = "/// 一键快捷选择大模型提供商",
+                color = RetroAmber,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                PresetChip(
+                    title = "智谱 GLM-4-Flash\n(官方永久免费)",
+                    color = RetroGreenPrimary,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    baseUrl = "https://open.bigmodel.cn/api/paas/v4"
+                    modelName = "glm-4-flash"
+                }
+                PresetChip(
+                    title = "DeepSeek\n(高性价比开源名模)",
+                    color = RetroAmber,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    baseUrl = "https://api.deepseek.com/v1"
+                    modelName = "deepseek-chat"
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                PresetChip(
+                    title = "硅基流动\n(Qwen/DeepSeek)",
+                    color = RetroGreenPrimary,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    baseUrl = "https://api.siliconflow.cn/v1"
+                    modelName = "Qwen/Qwen2.5-7B-Instruct"
+                }
+                PresetChip(
+                    title = "通义千问\n(阿里云百炼大模型)",
+                    color = RetroAmber,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+                    modelName = "qwen-plus"
+                }
+            }
 
             Spacer(modifier = Modifier.height(10.dp))
 
@@ -256,6 +317,34 @@ private fun BulletItem(title: String, desc: String) {
             fontSize = 11.sp,
             lineHeight = 15.sp,
             modifier = Modifier.padding(start = 10.dp)
+        )
+    }
+}
+
+@Composable
+private fun PresetChip(
+    title: String,
+    color: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(RetroDarkBg)
+            .border(1.dp, color.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+            .clickable { onClick() }
+            .padding(vertical = 6.dp, horizontal = 4.dp),
+        contentAlignment = androidx.compose.ui.Alignment.Center
+    ) {
+        Text(
+            text = title,
+            color = color,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            lineHeight = 13.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
     }
 }
