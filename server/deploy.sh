@@ -21,11 +21,13 @@ echo -e "\033[32m========================================================\033[0m
 echo -e "\033[32m  《人生 Online》Agent 服务端自动化安装与部署\033[0m"
 echo -e "\033[32m========================================================\033[0m"
 
-# 2. 安装系统基础依赖
+# 2. 安装系统基础依赖 (免交互静默安装)
 echo -e "\033[34m[1/6] 检查并安装系统依赖 (Git, Python3, venv, curl)...\033[0m"
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
 if command -v apt-get >/dev/null 2>&1; then
     apt-get update -y
-    apt-get install -y git python3 python3-pip python3-venv curl
+    apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" git python3 python3-pip python3-venv curl
 elif command -v dnf >/dev/null 2>&1; then
     dnf install -y git python3 python3-pip curl
 elif command -v yum >/dev/null 2>&1; then
