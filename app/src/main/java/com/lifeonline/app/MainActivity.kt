@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.lifeonline.app.service.KeepAliveMonitorService
 import com.lifeonline.app.ui.screens.dashboard.DashboardScreen
 import com.lifeonline.app.ui.screens.history.HistoryScreen
 import com.lifeonline.app.ui.screens.journal.JournalScreen
@@ -69,7 +70,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 申请计步器运动识别权限 (Android 10+)
+        // 申请通知权限 (Android 13+) 与计步器运动识别权限 (Android 10+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             if (ContextCompat.checkSelfPermission(
                     this,
@@ -78,6 +89,13 @@ class MainActivity : ComponentActivity() {
             ) {
                 requestPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
             }
+        }
+
+        // 启动常驻通知中心监控与后台保活前台服务
+        try {
+            KeepAliveMonitorService.start(this)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
 
         val repository = LifeOnlineApp.instance.repository
