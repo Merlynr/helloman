@@ -22,7 +22,8 @@ if (Test-Path $apkPath) {
     $devices = adb devices | Select-String "device$"
     if ($devices.Count -gt 0) {
         Write-Host "检测到已连接手机，正在自动安装 APK 到手机..." -ForegroundColor Yellow
-        adb install -r $apkPath
+        adb push $apkPath /data/local/tmp/app.apk
+        adb shell pm install -r -d -t /data/local/tmp/app.apk
         Write-Host "[√] 手机安装完成！正在启动应用..." -ForegroundColor Green
         adb shell am start -n com.lifeonline.app/.MainActivity
     } else {
