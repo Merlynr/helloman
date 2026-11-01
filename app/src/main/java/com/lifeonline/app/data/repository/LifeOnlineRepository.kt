@@ -19,13 +19,19 @@ import com.lifeonline.app.data.model.AchievementRarity
 import com.lifeonline.app.data.model.SideQuest
 import com.lifeonline.app.data.model.FullBlueprintTemplate
 import com.lifeonline.app.data.model.LifeBlueprintTemplates
+import com.lifeonline.app.data.model.SedentaryStatus
+import com.lifeonline.app.data.model.SleepRecord
 import com.lifeonline.app.data.remote.AiClient
 import com.lifeonline.app.data.remote.DaemonClient
+import com.lifeonline.app.data.sensor.RoutineAndHealthDetector
 import com.lifeonline.app.data.sensor.SensorDataManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -34,12 +40,24 @@ import java.util.Locale
 
 class LifeOnlineRepository(
     private val context: Context,
-    private val database: AppDatabase
+    val database: AppDatabase
 ) {
+    private val repoScope = CoroutineScope(Dispatchers.Default)
+
     val aiClient = AiClient(context)
     val daemonClient = DaemonClient(context)
     val sensorManager = SensorDataManager(context)
     val voiceRecorder = VoiceRecorder(context)
+    val routineDetector = RoutineAndHealthDetector(context, repoScope)
+
+    init {
+        // 实时连通步数与久坐检测
+        repoScope.launch {
+            sensorManager.currentSteps.collect { steps ->
+                routineDetector.onStepsUpdated(steps)
+            }
+        }
+    }
 
     // 主题风格配置 (默认开启用户喜爱的暖白复古卡带风格)
     private val themePrefs = context.getSharedPreferences("theme_settings", Context.MODE_PRIVATE)
@@ -60,6 +78,11 @@ class LifeOnlineRepository(
     val buffsFlow: Flow<List<BuffItem>> = database.buffDao().getAllBuffsFlow()
     val stepsFlow: StateFlow<Int> = sensorManager.currentSteps
     val achievementsFlow: Flow<List<Achievement>> = database.achievementDao().getAllAchievementsFlow()
+
+    // 作息与久坐 Flow
+    val latestSleepRecordFlow: StateFlow<SleepRecord?> = routineDetector.latestSleepRecord
+    val recent7DaysSleepFlow: Flow<List<SleepRecord>> = database.sleepRecordDao().getRecent7DaysSleepRecordsFlow()
+    val sedentaryStatusFlow: StateFlow<SedentaryStatus> = routineDetector.sedentaryStatus
 
     // 三层时间嵌套体系：阶段战役与人生篇章 Flow
     val campaignsFlow: Flow<List<Campaign>> = database.campaignDao().getAllCampaignsFlow()

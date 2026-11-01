@@ -69,21 +69,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.lifeonline.app.data.model.Campaign
-import com.lifeonline.app.data.model.SideQuest
-import com.lifeonline.app.data.model.DecomposedTask
-import com.lifeonline.app.data.model.LifeChapter
 import com.lifeonline.app.data.model.ChineseLifeCourseFramework
+import com.lifeonline.app.data.model.DecomposedTask
 import com.lifeonline.app.data.model.EvidenceBasedChapter
-import com.lifeonline.app.data.scale.LifeVelocityCalculator
-import com.lifeonline.app.data.scale.LifeVelocityResult
+import com.lifeonline.app.data.model.LifeChapter
+import com.lifeonline.app.data.model.SedentaryStatus
 import com.lifeonline.app.data.model.SettlementResult
+import com.lifeonline.app.data.model.SideQuest
+import com.lifeonline.app.data.model.SleepRecord
 import com.lifeonline.app.data.model.TaskItem
 import com.lifeonline.app.data.model.TaskType
 import com.lifeonline.app.data.model.UserStats
 import com.lifeonline.app.data.repository.LifeOnlineRepository
+import com.lifeonline.app.data.scale.LifeVelocityCalculator
+import com.lifeonline.app.data.scale.LifeVelocityResult
 import com.lifeonline.app.ui.components.EditCampaignDialog
 import com.lifeonline.app.ui.components.EditChapterDialog
 import com.lifeonline.app.ui.components.EditSideQuestDialog
+import com.lifeonline.app.ui.components.MorningSettlementDialog
 import com.lifeonline.app.ui.components.PixelSegmentedBar
 import com.lifeonline.app.ui.components.RetroContainer
 import com.lifeonline.app.ui.components.SettlementDialog
@@ -135,6 +138,10 @@ fun JournalScreen(repository: LifeOnlineRepository) {
     val activeCampaign by repository.activeCampaignFlow.collectAsState(initial = null)
     val activeChapter by repository.activeChapterFlow.collectAsState(initial = null)
     val sideQuests by repository.sideQuestsFlow.collectAsState(initial = emptyList())
+    val latestSleepRecord by repository.latestSleepRecordFlow.collectAsState()
+    val sedentaryStatus by repository.sedentaryStatusFlow.collectAsState()
+
+    var showSleepReportDialog by remember { mutableStateOf(false) }
 
     // 弹窗状态 (点哪改哪)
     var editingCampaign by remember { mutableStateOf<Campaign?>(null) }
@@ -358,6 +365,10 @@ fun JournalScreen(repository: LifeOnlineRepository) {
                         }
                     },
                     onCreateSideQuest = { isCreatingSideQuest = true },
+                    sleepRecord = latestSleepRecord,
+                    sedentaryStatus = sedentaryStatus,
+                    onOpenSleepReport = { showSleepReportDialog = true },
+                    onMockSleep = { isLate -> repository.routineDetector.mockSleepRecordForTest(isLate) },
                     isCartridge = isCartridge
                 )
             }
@@ -470,6 +481,18 @@ fun JournalScreen(repository: LifeOnlineRepository) {
         SettlementDialog(
             result = settlement,
             onDismiss = { activeSettlement = null }
+        )
+    }
+
+    // 晨间作息回血结算弹窗 (首次开屏或手动触发)
+    val shouldShowMorningDialog = showSleepReportDialog || (latestSleepRecord != null && !latestSleepRecord!!.isDismissed)
+    if (shouldShowMorningDialog && latestSleepRecord != null) {
+        MorningSettlementDialog(
+            record = latestSleepRecord!!,
+            onDismiss = {
+                showSleepReportDialog = false
+                repository.routineDetector.dismissLatestSleepRecord()
+            }
         )
     }
 }
@@ -728,6 +751,10 @@ private fun DailyModeContent(
     onEditSideQuest: (SideQuest) -> Unit,
     onBoostSideQuest: (Long) -> Unit,
     onCreateSideQuest: () -> Unit,
+    sleepRecord: SleepRecord?,
+    sedentaryStatus: SedentaryStatus,
+    onOpenSleepReport: () -> Unit,
+    onMockSleep: (Boolean) -> Unit,
     isCartridge: Boolean
 ) {
     val accentRed = if (isCartridge) CartridgeAccentRed else RetroAmber
@@ -920,42 +947,138 @@ private fun DailyModeContent(
 
     Spacer(modifier = Modifier.height(10.dp))
 
-    // 1. 安卓传感器采集卡片
-    RetroContainer(title = "安卓端自动采集", subtitle = "SENSOR ACTIVE") {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "今日计步传感器 (硬件实时同步)",
-                    color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp
-                )
-                Text(
-                    text = "$steps 步",
-                    color = primaryGreen,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
-                )
+    // 1. 安卓端自动采集卡片 (计步、作息熬夜与日间久坐)
+    RetroContainer(title = "安卓端自动采集", subtitle = "SENSOR & ROUTINE ACTIVE") {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // 第一行：实时硬件计步
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "今日计步传感器 (硬件实时同步)",
+                        color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        text = "$steps 步",
+                        color = primaryGreen,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (isCartridge) Color(0xFFEDE9DF) else RetroDarkBg)
+                        .border(1.dp, if (isCartridge) CartridgeBorder.copy(alpha = 0.5f) else RetroCardBorder, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "● 自动记录中",
+                        color = primaryGreen,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
             }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 第二行：昨夜作息研判卡片
+            val isLate = sleepRecord?.isLateNight == true
+            val sleepAccent = if (isLate) CartridgeAccentRed else primaryGreen
+            val durationHrs = if (sleepRecord != null) String.format(Locale.getDefault(), "%.1f", sleepRecord.durationMinutes / 60.0f) else "7.5"
 
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(if (isCartridge) Color(0xFFEDE9DF) else RetroDarkBg)
-                    .border(1.dp, if (isCartridge) CartridgeBorder.copy(alpha = 0.5f) else RetroCardBorder, RoundedCornerShape(4.dp))
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (isCartridge) Color(0xFFF3EFE7) else RetroDarkBg)
+                    .border(1.dp, if (isCartridge) CartridgeBorder.copy(alpha = 0.5f) else RetroCardBorder, RoundedCornerShape(6.dp))
+                    .clickable { onOpenSleepReport() }
+                    .padding(10.dp)
             ) {
-                Text(
-                    text = "● 自动记录中",
-                    color = primaryGreen,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (sleepRecord != null) {
+                                    if (isLate) "🌙 昨夜作息：熬夜透支 (${sleepRecord.statusTitle})"
+                                    else "🌙 昨夜作息：规律回血 (${sleepRecord.statusTitle})"
+                                } else {
+                                    "🌙 作息研判中 · 22:30后算熬夜 / 07:00起"
+                                },
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = sleepAccent
+                            )
+                        }
+                        Text(
+                            text = if (sleepRecord != null) "已睡 ${durationHrs}h · 健康分 ${sleepRecord.sleepScore} · 点击查看晨间报告 ▶"
+                            else "灭屏与唤醒传感器已就绪 · 点击可模拟体验 ▶",
+                            fontSize = 10.sp,
+                            color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+
+                    // 快速模拟测试按钮
+                    Text(
+                        text = "⚡模拟作息",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = primaryGreen,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .border(1.dp, primaryGreen.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                            .clickable { onMockSleep(!isLate) }
+                            .padding(horizontal = 6.dp, vertical = 3.dp)
+                    )
+                }
+            }
+
+            // 第三行：日间久坐警报 (若达到90分钟静止)
+            if (sedentaryStatus.isSedentary) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(CartridgeAccentRed.copy(alpha = 0.12f))
+                        .border(1.5.dp, CartridgeAccentRed, RoundedCornerShape(6.dp))
+                        .padding(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "⚠️", fontSize = 16.sp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Column {
+                            Text(
+                                text = "久坐警报：已连续伏案 ${sedentaryStatus.inactiveMinutes} 分钟！",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                color = CartridgeAccentRed
+                            )
+                            Text(
+                                text = "经络受阻气血停滞，请起身走动 100 步解除 (已走 ${sedentaryStatus.stepsWalkedSinceSedentary}/${sedentaryStatus.targetStepsToClear} 步)",
+                                fontSize = 10.sp,
+                                color = CartridgeAccentRed.copy(alpha = 0.85f)
+                            )
+                        }
+                    }
+                }
             }
         }
     }

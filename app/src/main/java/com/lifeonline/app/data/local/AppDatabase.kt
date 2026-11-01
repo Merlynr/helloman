@@ -10,6 +10,7 @@ import com.lifeonline.app.data.local.dao.CampaignDao
 import com.lifeonline.app.data.local.dao.DailyLogDao
 import com.lifeonline.app.data.local.dao.LifeChapterDao
 import com.lifeonline.app.data.local.dao.SideQuestDao
+import com.lifeonline.app.data.local.dao.SleepRecordDao
 import com.lifeonline.app.data.local.dao.TaskDao
 import com.lifeonline.app.data.local.dao.UserStatsDao
 import com.lifeonline.app.data.model.Achievement
@@ -18,6 +19,7 @@ import com.lifeonline.app.data.model.Campaign
 import com.lifeonline.app.data.model.DailyLog
 import com.lifeonline.app.data.model.LifeChapter
 import com.lifeonline.app.data.model.SideQuest
+import com.lifeonline.app.data.model.SleepRecord
 import com.lifeonline.app.data.model.TaskItem
 import com.lifeonline.app.data.model.UserStats
 
@@ -30,9 +32,10 @@ import com.lifeonline.app.data.model.UserStats
         Campaign::class,
         LifeChapter::class,
         Achievement::class,
-        SideQuest::class
+        SideQuest::class,
+        SleepRecord::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -45,6 +48,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun lifeChapterDao(): LifeChapterDao
     abstract fun achievementDao(): AchievementDao
     abstract fun sideQuestDao(): SideQuestDao
+    abstract fun sleepRecordDao(): SleepRecordDao
 
     companion object {
         @Volatile

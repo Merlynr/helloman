@@ -60,6 +60,8 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
     val buffs by repository.buffsFlow.collectAsState(initial = emptyList())
     val steps by repository.stepsFlow.collectAsState()
     val dailyLogs by repository.dailyLogsFlow.collectAsState(initial = emptyList())
+    val latestSleepRecord by repository.latestSleepRecordFlow.collectAsState()
+    val sedentaryStatus by repository.sedentaryStatusFlow.collectAsState()
     val scope = rememberCoroutineScope()
     val isCartridge = LocalIsCartridgeTheme.current
 
@@ -174,6 +176,46 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
                 maxValue = stats.maxMp,
                 barColor = RetroBlue
             )
+
+            // 实时身体节律状态标签
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val isLate = latestSleepRecord?.isLateNight == true
+                val sleepText = if (latestSleepRecord != null) {
+                    if (isLate) "🌙 昨夜熬夜 (${latestSleepRecord?.statusTitle})"
+                    else "🌙 昨夜作息良好 (${latestSleepRecord?.statusTitle})"
+                } else {
+                    "🌙 传感器监测中 · 22:30标尺"
+                }
+                Text(
+                    text = sleepText,
+                    fontSize = 11.sp,
+                    color = if (isLate) CartridgeAccentRed else (if (isCartridge) CartridgeGreen else RetroGreenPrimary),
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                if (sedentaryStatus.isSedentary) {
+                    Text(
+                        text = "⚠️ 伏案${sedentaryStatus.inactiveMinutes}m (待走100步)",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CartridgeAccentRed,
+                        fontFamily = FontFamily.Monospace
+                    )
+                } else {
+                    Text(
+                        text = "● 经络通畅",
+                        fontSize = 10.sp,
+                        color = if (isCartridge) CartridgeGreen else RetroGreenPrimary,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(10.dp))

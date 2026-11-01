@@ -33,3 +33,9 @@ val CartridgeAccentRed = Color(0xFFC85A54)   // 复古砖红 (EXP标签、倒计
 val CartridgeBorder = Color(0xFF234233)      // 实线深绿边框
 val CartridgeTickEmpty = Color(0xFFE2DDD3)   // 刻度条未填充底色
 val CartridgePaperAccent = Color(0xFFEFE9DC) // 纸质卡槽阴影色
+
+// 别名与互通语义
+val CartridgeCardBg = CartridgeCard
+val CartridgeForestGreen = CartridgeGreen
+val CartridgeGold = RetroAmber
+val CartridgeTextDark = CartridgeText
