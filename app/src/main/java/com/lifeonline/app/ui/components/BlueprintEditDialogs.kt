@@ -11,7 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.CircularProgressIndicator
+import com.lifeonline.app.data.repository.LifeOnlineRepository
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -71,11 +74,13 @@ import kotlinx.coroutines.launch
 @Composable
 fun EditCampaignDialog(
     campaign: Campaign,
+    repository: LifeOnlineRepository,
     isCartridge: Boolean,
     onDismiss: () -> Unit,
     onConfirm: (Campaign) -> Unit,
     onApplyTemplate: (FullBlueprintTemplate) -> Unit
 ) {
+    val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     var selectedTab by remember { mutableStateOf(0) } // 0: 参数修改, 1: 模板库套用, 2: AI辅助规划
@@ -352,20 +357,46 @@ fun EditCampaignDialog(
                             Button(
                                 onClick = {
                                     if (aiPromptInput.isNotBlank()) {
-                                        // 智能计算并填充
-                                        val numbers = Regex("\\d+").findAll(aiPromptInput).map { it.value.toInt() }.toList()
-                                        val newTarget = if (numbers.isNotEmpty()) numbers.maxOrNull() ?: 1200 else 1200
-                                        title = if (aiPromptInput.contains("考公")) "2026 公务员考公上岸冲刺战役" else "阶段性战略攻坚战役"
-                                        targetTotal = newTarget.toString()
-                                        stageName = "阶段：专业真题模块与实战演练"
-                                        selectedTab = 0
+                                        scope.launch {
+                                            isAiPlanning = true
+                                            try {
+                                                val plan = repository.aiClient.generateCampaignPlan(aiPromptInput)
+                                                title = plan.title
+                                                targetDate = plan.targetDate
+                                                currentProgress = plan.currentProgress.toString()
+                                                targetTotal = plan.targetTotal.toString()
+                                                unit = plan.unit
+                                                stageName = plan.stageName
+                                                description = plan.description
+                                                Toast.makeText(context, "已成功调用 AI 演算战役规划！已填入参数直改表单", Toast.LENGTH_SHORT).show()
+                                                selectedTab = 0
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                                Toast.makeText(context, "AI 规划异常: ${e.message}", Toast.LENGTH_SHORT).show()
+                                            } finally {
+                                                isAiPlanning = false
+                                            }
+                                        }
+                                    } else {
+                                        Toast.makeText(context, "请先在上方输入目标或粘贴战役参数卡", Toast.LENGTH_SHORT).show()
                                     }
                                 },
-                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !isAiPlanning,
+                                modifier = Modifier.fillMaxWidth().height(42.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = primaryGreen),
                                 shape = RoundedCornerShape(4.dp)
                             ) {
-                                Text("🪄 AI 智能生成规划并填入表单", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                if (isAiPlanning) {
+                                    CircularProgressIndicator(
+                                        color = Color.White,
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("AI 规划师正在严密量化与推演...", fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = Color.White)
+                                } else {
+                                    Text("🪄 启动 AI 智能生成规划并填入表单", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.White)
+                                }
                             }
                         }
                     }

@@ -40,3 +40,13 @@ data class SettlementResult(
     val debuffsApplied: List<String> = emptyList(),
     val scaleEvaluation: ScaleEvaluation
 )
+
+data class CampaignPlanResult(
+    val title: String,
+    val targetDate: String = "2026-12-01",
+    val currentProgress: Int = 0,
+    val targetTotal: Int = 100,
+    val unit: String = "次",
+    val stageName: String = "第一阶段：基础夯实与习惯固化",
+    val description: String = ""
+)

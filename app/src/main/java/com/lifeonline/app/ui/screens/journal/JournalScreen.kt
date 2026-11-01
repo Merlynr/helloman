@@ -417,6 +417,7 @@ fun JournalScreen(repository: LifeOnlineRepository) {
     editingCampaign?.let { camp ->
         EditCampaignDialog(
             campaign = camp,
+            repository = repository,
             isCartridge = isCartridge,
             onDismiss = { editingCampaign = null },
             onConfirm = { updated ->

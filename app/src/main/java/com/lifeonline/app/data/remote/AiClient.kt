@@ -3,6 +3,7 @@ package com.lifeonline.app.data.remote
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.lifeonline.app.data.model.CampaignPlanResult
 import com.lifeonline.app.data.model.CharacterGenesisResult
 import com.lifeonline.app.data.model.DecomposedTask
 import com.lifeonline.app.data.model.SettlementResult
@@ -222,6 +223,22 @@ class AiClient(private val context: Context) {
         } catch (e: Exception) {
             e.printStackTrace()
             HowToLiveBetterScale.createOfflineDecomposedTasks(userInput)
+        }
+    }
+
+    suspend fun generateCampaignPlan(userInput: String): CampaignPlanResult = withContext(Dispatchers.IO) {
+        if (apiKey.isBlank()) {
+            return@withContext HowToLiveBetterScale.createDefaultCampaignPlan(userInput)
+        }
+
+        try {
+            val userPrompt = HowToLiveBetterScale.buildCampaignPlanPrompt(userInput)
+            val jsonResponse = callLlm(HowToLiveBetterScale.SYSTEM_BENCHMARK_PROMPT, userPrompt)
+            val cleanJson = extractJson(jsonResponse)
+            gson.fromJson(cleanJson, CampaignPlanResult::class.java)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            HowToLiveBetterScale.createDefaultCampaignPlan(userInput)
         }
     }
 

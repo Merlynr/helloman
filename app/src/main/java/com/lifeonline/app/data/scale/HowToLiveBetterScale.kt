@@ -1,6 +1,7 @@
 package com.lifeonline.app.data.scale
 
 import com.lifeonline.app.data.model.AttributeDeltas
+import com.lifeonline.app.data.model.CampaignPlanResult
 import com.lifeonline.app.data.model.CharacterGenesisResult
 import com.lifeonline.app.data.model.DecomposedTask
 import com.lifeonline.app.data.model.ScaleEvaluation
@@ -396,5 +397,119 @@ $todayInput
             ))
         }
         return results
+    }
+
+    /**
+     * 构建战役规划 AI Prompt
+     */
+    fun buildCampaignPlanPrompt(userInput: String): String {
+        return """
+用户输入了关于自己正在推进或计划推进的重大战略目标/战役描述：
+"$userInput"
+
+请根据《高性价比人生指南》的循证体系，为用户制定一个量化可衡量的「阶段主线战役（Campaign）」：
+战役是指耗时 1~12 个月、具备明确量化指标、决定下一阶段跃迁或防御底线的重大战略攻坚（如考公上岸、独立开发产品、体魄长跑、应急储备金）。
+
+请严格输出单个 JSON 对象，不要包含 markdown 标记或多余文字：
+{
+  "title": "简明有力的战役名称 (如：2026 公务员考公上岸冲刺战役)",
+  "targetDate": "目标截止达成日期 (如：2026-12-01，格式 YYYY-MM-DD)",
+  "currentProgress": 0,
+  "targetTotal": 1200,
+  "unit": "量化单位 (如：题、公里、小时、篇、元、%)",
+  "stageName": "当前所处攻坚阶段名称 (如：阶段二：真题与模块题海冲刺)",
+  "description": "战役核心战略阐述与防御价值说明 (50字以内)"
+}
+""".trimIndent()
+    }
+
+    /**
+     * 本地离线战役规划生成兜底引擎
+     */
+    fun createDefaultCampaignPlan(userInput: String): CampaignPlanResult {
+        val lower = userInput.lowercase()
+
+        // 1. 优先提取用户通过提示词模板粘贴的标准参数卡
+        val titleMatch = Regex("""(?:战役名称|名称)[：:]\s*(.+)""").find(userInput)?.groupValues?.get(1)?.trim()
+        val dateMatch = Regex("""(?:目标截止日期|截止日期|日期)[：:]\s*(\d{4}-\d{2}-\d{2})""").find(userInput)?.groupValues?.get(1)?.trim()
+        val unitMatch = Regex("""(?:计量单位|单位)[：:]\s*(.+)""").find(userInput)?.groupValues?.get(1)?.trim()
+        val totalMatch = Regex("""(?:目标总量数值|目标总量|总量)[：:]\s*(\d+)""").find(userInput)?.groupValues?.get(1)?.toIntOrNull()
+        val progressMatch = Regex("""(?:当前进度数值|当前进度|进度)[：:]\s*(\d+)""").find(userInput)?.groupValues?.get(1)?.toIntOrNull()
+        val stageMatch = Regex("""(?:当前所处阶段|当前阶段|阶段)[：:]\s*(.+)""").find(userInput)?.groupValues?.get(1)?.trim()
+        val descMatch = Regex("""(?:战役战略说明|战略说明|说明)[：:]\s*(.+)""").find(userInput)?.groupValues?.get(1)?.trim()
+
+        if (titleMatch != null || totalMatch != null) {
+            return CampaignPlanResult(
+                title = titleMatch ?: "主线阶段战略攻坚战役",
+                targetDate = dateMatch ?: "2026-12-01",
+                currentProgress = progressMatch ?: 0,
+                targetTotal = totalMatch ?: 1000,
+                unit = unitMatch ?: "次",
+                stageName = stageMatch ?: "第一阶段：核心目标推进与习惯固化",
+                description = descMatch ?: "立足现实长周期复利，构筑确定性人生护城河。"
+            )
+        }
+
+        // 2. 语义智能推导
+        val numbers = Regex("""\d+""").findAll(userInput).mapNotNull { it.value.toIntOrNull() }.toList()
+        val maxNum = if (numbers.isNotEmpty()) numbers.maxOrNull() ?: 100 else 100
+
+        return when {
+            lower.any { it in "考公公考申论行测公务员编制事业编公文范文金句" } -> {
+                CampaignPlanResult(
+                    title = if (lower.contains("范文") || lower.contains("金句")) "公文金句与申论范文攻坚战役" else "2026 公务员考公上岸冲刺战役",
+                    targetDate = "2026-12-01",
+                    currentProgress = if (maxNum > 1000) (maxNum * 0.4).toInt() else 1,
+                    targetTotal = if (maxNum > 50) maxNum else 100,
+                    unit = if (lower.contains("篇") || lower.contains("金句")) "篇" else "题",
+                    stageName = if (lower.contains("范文") || lower.contains("金句")) "阶段：申论范文精读与公文金句储备" else "阶段二：行测真题模块与实战演练",
+                    description = "以申论公文与行测真题为核心突破口，循证备战，构筑体制内确定性防御底座。"
+                )
+            }
+            lower.any { it in "代码开发软件产品上线项目架构前端后端bug" } -> {
+                CampaignPlanResult(
+                    title = "核心产品独立研发与商业化闭环战役",
+                    targetDate = "2026-10-01",
+                    currentProgress = 0,
+                    targetTotal = if (maxNum > 50) maxNum else 300,
+                    unit = "小时",
+                    stageName = "第一阶段：MVP架构构建与核心闭环验证",
+                    description = "深耕硬核技术复利，通过独立交付具备市场竞争力的作品筑牢技术护城河。"
+                )
+            }
+            lower.any { it in "跑健身减脂运动马拉松心肺步体能" } -> {
+                CampaignPlanResult(
+                    title = "心肺体能筑基与半马耐力跃升战役",
+                    targetDate = "2026-09-01",
+                    currentProgress = 0,
+                    targetTotal = if (maxNum in 10..500) maxNum else 100,
+                    unit = "公里",
+                    stageName = "第一阶段：低心率有氧慢跑耐力基础",
+                    description = "身体是承受命运之重的神殿，通过规律有氧强化心肺功能，延缓生命流速。"
+                )
+            }
+            lower.any { it in "备用金储蓄理财资产存款省钱投资" } -> {
+                CampaignPlanResult(
+                    title = "6个月生活应急安全垫筑牢战役",
+                    targetDate = "2026-12-31",
+                    currentProgress = 0,
+                    targetTotal = if (maxNum > 1000) maxNum else 50000,
+                    unit = "元",
+                    stageName = "第一阶段：强制储蓄率30%与极简开销控制",
+                    description = "防御优先于进攻，充足的现金流缓冲池是抵御一切黑天鹅风险的底气。"
+                )
+            }
+            else -> {
+                CampaignPlanResult(
+                    title = "主线阶段战略攻坚战役",
+                    targetDate = "2026-12-01",
+                    currentProgress = 0,
+                    targetTotal = if (maxNum in 10..5000) maxNum else 100,
+                    unit = "项",
+                    stageName = "第一阶段：微习惯落地与阶段性固化",
+                    description = "根据《高性价比人生指南》，聚焦关键战略目标，以量化行动对抗不确定性。"
+                )
+            }
+        }
     }
 }
