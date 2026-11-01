@@ -72,6 +72,10 @@ import com.lifeonline.app.data.model.Campaign
 import com.lifeonline.app.data.model.SideQuest
 import com.lifeonline.app.data.model.DecomposedTask
 import com.lifeonline.app.data.model.LifeChapter
+import com.lifeonline.app.data.model.ChineseLifeCourseFramework
+import com.lifeonline.app.data.model.EvidenceBasedChapter
+import com.lifeonline.app.data.scale.LifeVelocityCalculator
+import com.lifeonline.app.data.scale.LifeVelocityResult
 import com.lifeonline.app.data.model.SettlementResult
 import com.lifeonline.app.data.model.TaskItem
 import com.lifeonline.app.data.model.TaskType
@@ -380,6 +384,8 @@ fun JournalScreen(repository: LifeOnlineRepository) {
             JournalMode.CHAPTER -> {
                 ChapterModeContent(
                     chapter = activeChapter,
+                    userStats = userStats,
+                    steps = steps,
                     activeCampaign = activeCampaign,
                     onEditChapter = { editingChapter = activeChapter },
                     onNavigateToCampaign = { currentMode = JournalMode.CAMPAIGN },
@@ -1679,11 +1685,13 @@ private fun CampaignModeContent(
 }
 
 // =========================================================================
-// 5. 模式三：篇章 (CHAPTER) 详细内容
+// 5. 模式三：篇章 (CHAPTER) 详细内容 (整合张侃5个20年 × 毕生发展心理学 × CFPS/CHARLS实证调查)
 // =========================================================================
 @Composable
 private fun ChapterModeContent(
     chapter: LifeChapter?,
+    userStats: UserStats?,
+    steps: Int,
     activeCampaign: Campaign?,
     onEditChapter: () -> Unit,
     onNavigateToCampaign: () -> Unit,
@@ -1693,147 +1701,388 @@ private fun ChapterModeContent(
     val primaryGreen = if (isCartridge) CartridgeGreen else RetroGreenPrimary
     val textColor = if (isCartridge) CartridgeText else RetroGreenText
     val borderColor = if (isCartridge) CartridgeBorder else RetroCardBorder
+    val descColor = if (isCartridge) CartridgeTextMuted else RetroGreenText.copy(alpha = 0.7f)
 
-    val age = chapter?.currentAge ?: 25
+    val currentAge = chapter?.currentAge ?: 25
     val daysPassed = chapter?.daysPassed ?: 319
-    val totalTenYearDays = 3650
-    val daysRemain = (totalTenYearDays - daysPassed).coerceAtLeast(0)
-    val tenYearProgress = (daysPassed.toFloat() / totalTenYearDays).coerceIn(0f, 1f)
-    val tenYearPercent = String.format(Locale.getDefault(), "%.1f", tenYearProgress * 100f)
 
-    // 篇章主面板 (点哪改哪)
-    RetroContainer(title = "人生宏观篇章蓝图", subtitle = "LIFE CHAPTER") {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = chapter?.title ?: "25 ~ 35 岁 · 立业与职业护城河黄金十年",
-                    color = primaryGreen,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Black,
-                    fontSize = 15.sp,
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { onEditChapter() }
-                )
+    // 默认定位到用户当前年龄对应的阶段索引 (0: 18-25, 1: 25-35, 2: 35-45, 3: 45-60, 4: 60-80)
+    val defaultStageIndex = when {
+        currentAge < 25 -> 0
+        currentAge < 35 -> 1
+        currentAge < 45 -> 2
+        currentAge < 60 -> 3
+        else -> 4
+    }
+    var selectedStageIndex by remember { mutableStateOf(defaultStageIndex) }
 
-                Spacer(modifier = Modifier.width(6.dp))
+    // 自测核验状态字典
+    val selfCheckMap = remember {
+        mutableStateOf(
+            mutableMapOf(
+                "t1_1" to true, "t1_2" to true, "t1_3" to false, "t1_4" to true, "t1_5" to false,
+                "t2_1" to false, "t2_2" to true, "t2_3" to false, "t2_4" to false, "t2_5" to true
+            )
+        )
+    }
+
+    val selectedChapter = ChineseLifeCourseFramework.allChapters[selectedStageIndex]
+    val isPast = selectedStageIndex < defaultStageIndex
+    val isCurrent = selectedStageIndex == defaultStageIndex
+    val isFuture = selectedStageIndex > defaultStageIndex
+
+    // 生命流速计算
+    val velocityResult = remember(userStats, steps) {
+        LifeVelocityCalculator.calculate(userStats ?: UserStats(), steps)
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // 1. 顶部 5 阶段终身胶囊进度轴 (Life Course Capsule Timeline)
+        Text(
+            text = "/// LIFE TIMELINE 中国人生命历程五大篇章 (张侃“5个20年” × 毕生发展心理学)",
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
+            color = descColor,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(6.dp))
+                .background(if (isCartridge) Color(0xFFECE6DC) else RetroDarkBg)
+                .border(1.2.dp, borderColor, RoundedCornerShape(6.dp))
+                .padding(3.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            ChineseLifeCourseFramework.allChapters.forEachIndexed { index, ch ->
+                val isSelected = selectedStageIndex == index
+                val isThisStageCurrent = defaultStageIndex == index
+                val isThisStagePast = index < defaultStageIndex
 
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(if (isCartridge) CartridgeGreen else RetroDarkBg)
-                        .border(1.dp, if (isCartridge) CartridgeBorder else RetroCardBorder, RoundedCornerShape(3.dp))
-                        .clickable { onEditChapter() }
-                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                        .weight(1f)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(
+                            when {
+                                isSelected -> if (isCartridge) CartridgeGreen else RetroGreenPrimary
+                                isThisStageCurrent -> if (isCartridge) Color(0xFFDFD8CA) else Color(0xFF14241B)
+                                else -> Color.Transparent
+                            }
+                        )
+                        .clickable { selectedStageIndex = index }
+                        .padding(vertical = 6.dp, horizontal = 2.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = when (index) {
+                                0 -> "18-25"
+                                1 -> "25-35"
+                                2 -> "35-45"
+                                3 -> "45-60"
+                                else -> "60-80+"
+                            },
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
+                            fontSize = 10.sp,
+                            color = when {
+                                isSelected -> if (isCartridge) CartridgeCard else Color.Black
+                                isThisStageCurrent -> accentRed
+                                else -> descColor
+                            }
+                        )
+                        Text(
+                            text = when {
+                                isThisStageCurrent -> "进行中"
+                                isThisStagePast -> "已通关"
+                                else -> "预习"
+                            },
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 8.sp,
+                            color = when {
+                                isSelected -> if (isCartridge) CartridgeCard.copy(alpha = 0.85f) else Color.Black
+                                isThisStageCurrent -> accentRed
+                                else -> descColor.copy(alpha = 0.7f)
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // 2. 篇章主面板 (根据 是进行中 / 过去通关 / 未来预习 展现不同三态)
+        RetroContainer(
+            title = when {
+                isCurrent -> "当前经历篇章 (ACTIVE)"
+                isPast -> "历史篇章回顾与自测 (REVIEW)"
+                else -> "未来篇章提前预习 (PREVIEW)"
+            },
+            subtitle = selectedChapter.ageRange
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // 篇章名称行
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "⚙️ 修改篇章",
-                        color = if (isCartridge) CartridgeCard else RetroGreenPrimary,
+                        text = selectedChapter.name,
+                        color = primaryGreen,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 14.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    if (isCurrent) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(if (isCartridge) CartridgeGreen else RetroDarkBg)
+                                .border(1.dp, borderColor, RoundedCornerShape(3.dp))
+                                .clickable { onEditChapter() }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "⚙️ 微调",
+                                color = if (isCartridge) CartridgeCard else RetroGreenPrimary,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = "理论基石: ${selectedChapter.theorySource}",
+                    color = descColor,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 9.sp
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = selectedChapter.macroStrategy,
+                    color = textColor,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // (A) 如果是当前篇章：展示生命流速仪表盘与流速提醒因子
+                if (isCurrent) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isCartridge) Color(0xFFF7F2E7) else RetroDarkBg)
+                            .border(1.2.dp, if (velocityResult.isWarning) CartridgeAccentRed else primaryGreen, RoundedCornerShape(6.dp))
+                            .padding(10.dp)
+                    ) {
+                        Column {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "⏳ 年龄流速计: 当前 $currentAge 岁 · 第 $daysPassed 天",
+                                    color = textColor,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp
+                                )
+                                Text(
+                                    text = velocityResult.statusTag,
+                                    color = if (velocityResult.isWarning) CartridgeAccentRed else primaryGreen,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 10.sp
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // 十年进度条
+                            val totalDays = (selectedChapter.endAge - selectedChapter.startAge) * 365
+                            val prog = (daysPassed.toFloat() / totalDays).coerceIn(0f, 1f)
+                            PixelSegmentedBar(
+                                progress = prog,
+                                activeColor = if (velocityResult.isWarning) CartridgeAccentRed else primaryGreen
+                            )
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Text(
+                                text = "生命流速因子: ${velocityResult.factorText} | ${velocityResult.diagnosticSummary}",
+                                color = if (velocityResult.isWarning) CartridgeAccentRed else descColor,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                lineHeight = 14.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                // (B) 核心发展任务 (Developmental Tasks)
+                Text(
+                    text = when {
+                        isCurrent -> "📋 本阶段 5 大核心发展任务 (进行中):"
+                        isPast -> "📋 历史任务自测核验 (点击可切换“达成 vs 遗留待补”):"
+                        else -> "📋 未来阶段必须面对的核心矛盾与发展任务:"
+                    },
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                    color = primaryGreen
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                selectedChapter.developmentalTasks.forEach { task ->
+                    val isChecked = selfCheckMap.value[task.id] ?: task.defaultAchieved
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (isCartridge) Color(0xFFFAF7F0) else Color(0xFF0F1A13))
+                            .border(1.dp, if (isChecked) primaryGreen.copy(alpha = 0.6f) else borderColor.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+                            .clickable {
+                                // 点击切换自测状态
+                                val updated = selfCheckMap.value.toMutableMap()
+                                updated[task.id] = !isChecked
+                                selfCheckMap.value = updated
+                            }
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (isChecked) "✓" else "○",
+                                color = if (isChecked) primaryGreen else CartridgeAccentRed,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 13.sp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "[${task.category}] ${task.title}",
+                                    color = if (isChecked) textColor else descColor,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp
+                                )
+                                Text(
+                                    text = task.description,
+                                    color = descColor,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 9.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isChecked) "已达成" else if (isPast) "待补课" else "未达成",
+                                color = if (isChecked) primaryGreen else CartridgeAccentRed,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // (C) 权威实证数据引用卡片 (CFPS / CHARLS 硬核透视)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (isCartridge) Color(0xFFF3EFE7) else RetroDarkBg)
+                        .border(1.dp, borderColor, RoundedCornerShape(6.dp))
+                        .padding(8.dp)
+                ) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "📊", fontSize = 13.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = selectedChapter.empiricalInsight.source,
+                                color = primaryGreen,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = "“${selectedChapter.empiricalInsight.dataQuote}”",
+                            color = textColor,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            lineHeight = 15.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "💡 启示: ${selectedChapter.empiricalInsight.keyTakeaway}",
+                            color = accentRed,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+
+                // (D) 建议主线战役锚定
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (isCartridge) Color(0xFFFAF7F0) else RetroDarkBg)
+                        .border(1.dp, borderColor, RoundedCornerShape(4.dp))
+                        .clickable { onNavigateToCampaign() }
+                        .padding(8.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "🎯 本阶段核心战役: ${selectedChapter.recommendedCampaignTitle}",
+                            color = primaryGreen,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                        Text(
+                            text = "目标配额: ${selectedChapter.recommendedCampaignTarget}",
+                            color = descColor,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 9.sp
+                        )
+                    }
+                    Text(
+                        text = "查看战役 ▶",
+                        color = accentRed,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.sp
                     )
                 }
             }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = "年龄流速计: 当前 $age 岁 · 已走过第 $daysPassed 天 (本黄金十年还剩 $daysRemain 天)",
-                color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // 十年光阴进度条
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "十年时间流逝",
-                    color = textColor,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    text = "$daysPassed / $totalTenYearDays 天 ($tenYearPercent%)",
-                    color = accentRed,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            PixelSegmentedBar(
-                progress = tenYearProgress,
-                totalTicks = 40,
-                activeColor = accentRed,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(
-                text = chapter?.description ?: "根据《高性价比人生指南》，25~35岁是个人核心技能定型、抗风险安全垫搭建的最关键窗口期。此时应防御优先于盲目盲干，全力攻坚体制或专业资质护城河。",
-                color = if (isCartridge) CartridgeText else RetroGreenText.copy(alpha = 0.85f),
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp,
-                lineHeight = 16.sp
-            )
         }
-    }
-
-    Spacer(modifier = Modifier.height(12.dp))
-
-    // 篇章三大防御支柱 (Defense Pillars)
-    RetroContainer(title = "黄金十年三大防御支柱", subtitle = "PILLARS") {
-        DefensePillarItem(
-            attrTag = "TEC 算力",
-            title = "体制/专业资质护城河",
-            desc = "攻坚具备制度保护壁垒的体制内岗位。当前主线：2026 公务员考试上岸冲刺战役 (42%)",
-            status = "战役进行中 ▶",
-            statusColor = primaryGreen,
-            onClick = onNavigateToCampaign,
-            isCartridge = isCartridge
-        )
-        DefensePillarItem(
-            attrTag = "GOLD 财商",
-            title = "极简开支与应急安全垫",
-            desc = "拒绝加高杠杆与盲目消费主义，维持 6~12 个月极端情况生活备用金，杜绝意外致贫",
-            status = "已构筑",
-            statusColor = accentRed,
-            onClick = null,
-            isCartridge = isCartridge
-        )
-        DefensePillarItem(
-            attrTag = "VIT 气血",
-            title = "睡眠与体能底线防线",
-            desc = "规律 7.5 小时睡眠 + 每日 6000 步轻量运动，守护免疫力，严防重大疾病与早衰",
-            status = "每日维护中",
-            statusColor = primaryGreen,
-            onClick = null,
-            isCartridge = isCartridge
-        )
-    }
-
-    Spacer(modifier = Modifier.height(12.dp))
-
-    // 人生全景篇章管道流 (Life Pipeline)
-    RetroContainer(title = "人生全景路线规划", subtitle = "ROADMAP") {
-        RoadmapStageItem(stage = "18 ~ 24 岁", title = "认知与试错阶段", tag = "已达成 ✓", isPassed = true, isCurrent = false, isCartridge = isCartridge)
-        RoadmapStageItem(stage = "25 ~ 35 岁", title = "立业与职业护城河黄金十年", tag = "当前推进中 ▶", isPassed = false, isCurrent = true, isCartridge = isCartridge)
-        RoadmapStageItem(stage = "35 ~ 45 岁", title = "守成与多重复利期", tag = "规划中 ○", isPassed = false, isCurrent = false, isCartridge = isCartridge)
-        RoadmapStageItem(stage = "45+ 岁", title = "自由与抗脆弱生态期", tag = "远景规划", isPassed = false, isCurrent = false, isCartridge = isCartridge)
     }
 }
 
