@@ -99,6 +99,6 @@ jobs:
             output/${{ steps.prepare_apk.outputs.apk_name }}
             output/LifeOnline-latest.apk
           name: "人生 Online ${{ github.ref_name }}"
+          body_path: RELEASE_NOTES.md
           draft: false
           prerelease: false
-          generate_release_notes: true
