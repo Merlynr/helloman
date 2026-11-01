@@ -1,0 +1,65 @@
+{
+  "date": "2026-11-01",
+  "timestamp": "2026-11-01T15:22:56.245508",
+  "rawInput": "下午在公园跑步5公里，精读专业论文2小时，午餐外卖花费28元，晚上早睡不熬夜",
+  "stepCount": 8500,
+  "settlement": {
+    "dialogue": "【今日 Agent 裁决】检测到你的有效生活实践！步数达到 8500 步，产出扎实成长经验 +100 EXP。保持这种低心智内耗的高性价比节奏！",
+    "expGained": 100,
+    "attributeDeltas": {
+      "tec": 15,
+      "vit": 21,
+      "san": 15,
+      "gold": -28,
+      "rel": 0
+    },
+    "buffsApplied": [
+      "气血充盈 (明日恢复速度提升)",
+      "心如止水 (专注心流加成)"
+    ],
+    "debuffsApplied": [
+      "睡眠债务 (心智疲倦)"
+    ],
+    "scaleEvaluation": {
+      "shortTerm": "微习惯有效推进，传感器步数与心流专注提供了稳健的确定性收益。",
+      "midTerm": "坚持阶段性打卡与现金流管控，遵循高性价比复利法则，防止大起大落。",
+      "longTerm": "根据《高性价比人生指南》，持续筑牢健康与储蓄安全底线，是抵抗外部不确定性的最高收益投资。"
+    }
+  },
+  "profileSnapshot": {
+    "name": "玩家",
+    "title": "初窥门径的工程师",
+    "level": 2,
+    "exp": 100,
+    "maxExp": 200,
+    "tec": 55,
+    "vit": 41,
+    "san": 40,
+    "gold": 7,
+    "rel": 20,
+    "hp": 100,
+    "maxHp": 100,
+    "mp": 100,
+    "maxMp": 100,
+    "isInitialized": true,
+    "backgroundStory": "软件工程专业，工作3年，完成过半马，有长期定投习惯，经常熬夜心流写代码",
+    "traits": [
+      {
+        "name": "逻辑思维",
+        "description": "系统性思考与问题拆解能力，TEC获取效率+10%",
+        "isDebuff": false
+      },
+      {
+        "name": "作息透支",
+        "description": "长期存在节律债务，VIT上限受到潜在抑制，需尽快修复",
+        "isDebuff": true
+      },
+      {
+        "name": "防御储备",
+        "description": "具备良好的财务安全垫意识，抗金融风险韧性增强",
+        "isDebuff": false
+      }
+    ],
+    "updatedAt": "2026-11-01T15:22:56.245326"
+  }
+}

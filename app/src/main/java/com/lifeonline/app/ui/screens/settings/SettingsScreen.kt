@@ -42,8 +42,11 @@ fun SettingsScreen(
     onResetCharacter: () -> Unit
 ) {
     val aiClient = repository.aiClient
+    val daemonClient = repository.daemonClient
     val scope = rememberCoroutineScope()
 
+    var daemonUrl by remember { mutableStateOf(daemonClient.serverUrl) }
+    var daemonStatus by remember { mutableStateOf("") }
     var apiKey by remember { mutableStateOf(aiClient.apiKey) }
     var baseUrl by remember { mutableStateOf(aiClient.baseUrl) }
     var modelName by remember { mutableStateOf(aiClient.modelName) }
@@ -56,6 +59,61 @@ fun SettingsScreen(
             .padding(horizontal = 14.dp, vertical = 10.dp)
             .verticalScroll(rememberScrollState())
     ) {
+        // 0. C/S 模式：电脑端 Agent 守护进程配置
+        RetroContainer(title = "C/S 模式 · 电脑端 Agent 守护进程", subtitle = "DAEMON") {
+            Text(
+                text = "连接当前电脑常驻的 Python Agent 守护进程。支持 USB 调试直连 (127.0.0.1:8080) 或局域网 IP 直连。由电脑端 Agent 负责推演与持久化长程知识库。",
+                color = RetroGreenText.copy(alpha = 0.7f),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+                lineHeight = 16.sp
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = daemonUrl,
+                onValueChange = { daemonUrl = it },
+                label = { Text("Agent 服务端地址", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = textFieldColors(),
+                shape = RoundedCornerShape(4.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(
+                onClick = {
+                    daemonClient.serverUrl = daemonUrl.trim()
+                    scope.launch {
+                        val isOnline = daemonClient.isServerOnline()
+                        daemonStatus = if (isOnline) "● 连接成功！电脑端 Agent 守护服务在线" else "○ 无法连接，请确认电脑已启动 server/main.py 并在 8080 端口运行"
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = RetroGreenPrimary,
+                    contentColor = RetroDarkBg
+                ),
+                shape = RoundedCornerShape(4.dp)
+            ) {
+                Text("[ 测试 Agent 服务连通性 (TEST) ]", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+
+            if (daemonStatus.isNotBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = daemonStatus,
+                    color = if (daemonStatus.startsWith("●")) RetroGreenPrimary else RetroAmber,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
         // 1. 大模型 API 配置 (LLM API Configuration)
         RetroContainer(title = "AI 模型服务配置", subtitle = "CONFIG") {
             Text(

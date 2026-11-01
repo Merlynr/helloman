@@ -11,6 +11,7 @@ import com.lifeonline.app.data.model.TaskType
 import com.lifeonline.app.data.model.UserStats
 import com.lifeonline.app.data.remote.AiClient
 import com.lifeonline.app.data.sensor.SensorDataManager
+import com.lifeonline.app.data.remote.DaemonClient
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import java.text.SimpleDateFormat
@@ -22,6 +23,7 @@ class LifeOnlineRepository(
     private val database: AppDatabase
 ) {
     val aiClient = AiClient(context)
+    val daemonClient = DaemonClient(context)
     val sensorManager = SensorDataManager(context)
 
     val userStatsFlow: Flow<UserStats?> = database.userStatsDao().getUserStatsFlow()
@@ -38,7 +40,9 @@ class LifeOnlineRepository(
      * 角色初始化（经历录入 -> AI 生成五维属性与天生特质）
      */
     suspend fun initializeCharacter(historyInput: String): CharacterGenesisResult {
-        val result = aiClient.generateCharacterGenesis(historyInput)
+        // 优先通过电脑端 Agent Daemon 计算并持久化，若未连接则优雅降级为本地规则
+        val daemonResult = daemonClient.genesis(historyInput)
+        val result = daemonResult ?: aiClient.generateCharacterGenesis(historyInput)
 
         val newStats = UserStats(
             id = 1,
@@ -91,8 +95,9 @@ class LifeOnlineRepository(
 
         // 获取已完成任务
         val allTasks = mutableListOf<String>()
-        // 传递任务标题给 AI
-        val result = aiClient.generateDailySettlement(currentStats, rawInput, stepCount, allTasks)
+        // 优先通过电脑端 Agent Daemon 结算并沉淀长程知识库档案
+        val daemonResult = daemonClient.settle(todayStr, rawInput, stepCount, allTasks)
+        val result = daemonResult ?: aiClient.generateDailySettlement(currentStats, rawInput, stepCount, allTasks)
 
         // 经验累加与升级判定
         var newExp = currentStats.exp + result.expGained

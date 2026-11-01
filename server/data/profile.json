@@ -1,0 +1,36 @@
+{
+  "name": "玩家",
+  "title": "初窥门径的工程师",
+  "level": 2,
+  "exp": 100,
+  "maxExp": 200,
+  "tec": 55,
+  "vit": 41,
+  "san": 40,
+  "gold": 7,
+  "rel": 20,
+  "hp": 100,
+  "maxHp": 100,
+  "mp": 100,
+  "maxMp": 100,
+  "isInitialized": true,
+  "backgroundStory": "软件工程专业，工作3年，完成过半马，有长期定投习惯，经常熬夜心流写代码",
+  "traits": [
+    {
+      "name": "逻辑思维",
+      "description": "系统性思考与问题拆解能力，TEC获取效率+10%",
+      "isDebuff": false
+    },
+    {
+      "name": "作息透支",
+      "description": "长期存在节律债务，VIT上限受到潜在抑制，需尽快修复",
+      "isDebuff": true
+    },
+    {
+      "name": "防御储备",
+      "description": "具备良好的财务安全垫意识，抗金融风险韧性增强",
+      "isDebuff": false
+    }
+  ],
+  "updatedAt": "2026-11-01T15:22:56.245326"
+}
