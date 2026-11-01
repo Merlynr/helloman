@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lifeonline.app.ui.theme.CartridgeBorder
@@ -97,12 +98,16 @@ fun RetroContainer(
                     }
 
                     if (subtitle != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
                         Spacer(modifier = Modifier.weight(1f))
                         Text(
                             text = subtitle,
                             color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
                             fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }

@@ -119,36 +119,39 @@ fun OnboardingScreen(
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        // 顶部大标题
+        // 顶部大标题 (紧凑自适应布局，防止右侧步骤徽章被挤压折行)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "/// 人生 ONLINE · 角色创生 ///",
                     color = primaryGreen,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Black,
-                    fontSize = 17.sp
+                    fontSize = 16.sp,
+                    maxLines = 1
                 )
                 Text(
-                    text = "《高性价比人生指南》循证测评 · AI 考官问询向导",
+                    text = "《高性价比人生指南》循证测评 · AI 问询向导",
                     color = if (isCartridge) CartridgeTextMuted else RetroGreenText.copy(alpha = 0.7f),
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp
+                    fontSize = 11.sp,
+                    maxLines = 1
                 )
             }
+
+            Spacer(modifier = Modifier.width(10.dp))
 
             if (genesisResult == null) {
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
-                        .background(primaryGreen.copy(alpha = 0.15f))
-                        .border(1.dp, primaryGreen, RoundedCornerShape(4.dp))
+                        .background(primaryGreen.copy(alpha = 0.12f))
+                        .border(1.2.dp, primaryGreen, RoundedCornerShape(4.dp))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
@@ -156,7 +159,9 @@ fun OnboardingScreen(
                         color = primaryGreen,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
@@ -178,7 +183,7 @@ fun OnboardingScreen(
                 // 步骤 1：基础设定 (姓名、卡头头像、年龄)
                 // =========================================================
                 1 -> {
-                    RetroContainer(title = "阶段 1/6 · 现实坐标与图腾", subtitle = "IDENTITY & AVATAR") {
+                    RetroContainer(title = "阶段 1/6 · 现实坐标与图腾", subtitle = "IDENTITY") {
                         AiInterviewerPrompt(
                             prompt = "「旅者，欢迎来到现实世界的 RPG 映射系统。在开始测定你的生理与精神五维之前，请首先确定你在现实世界的身份坐标与专属图腾。」",
                             primaryColor = primaryGreen,
@@ -289,7 +294,7 @@ fun OnboardingScreen(
                 // 步骤 2：学识与硬技能 (TEC)
                 // =========================================================
                 2 -> {
-                    RetroContainer(title = "阶段 2/6 · 智识与硬核技能", subtitle = "TEC / KNOWLEDGE") {
+                    RetroContainer(title = "阶段 2/6 · 智识与硬核技能", subtitle = "TEC") {
                         AiInterviewerPrompt(
                             prompt = "「在现代社会的竞争网络中，你的核心专业技能与认知壁垒是什么？具备哪些高含金量资质证书或重要攻坚目标？」",
                             primaryColor = primaryGreen,
@@ -321,7 +326,7 @@ fun OnboardingScreen(
                 // 步骤 3：体魄与天时作息 (VIT)
                 // =========================================================
                 3 -> {
-                    RetroContainer(title = "阶段 3/6 · 体魄与天时作息", subtitle = "VIT / VITALITY") {
+                    RetroContainer(title = "阶段 3/6 · 体魄与天时作息", subtitle = "VIT") {
                         AiInterviewerPrompt(
                             prompt = "「《黄帝内经》与现代神经科学表明，天时安歇是生命流速的第一基石。你平时的入眠时刻（是否熬夜>22:30）、运动频率与体能如何？」",
                             primaryColor = primaryGreen,
@@ -353,7 +358,7 @@ fun OnboardingScreen(
                 // 步骤 4：心理意志与专注 (SAN)
                 // =========================================================
                 4 -> {
-                    RetroContainer(title = "阶段 4/6 · 心智意志与专注", subtitle = "SAN / RESILIENCE") {
+                    RetroContainer(title = "阶段 4/6 · 心智意志与专注", subtitle = "SAN") {
                         AiInterviewerPrompt(
                             prompt = "「面对突发逆境、职场压力或长期不确定性时，你的精神抗挫力与专注心流表现如何？是否容易陷入情绪内耗？」",
                             primaryColor = primaryGreen,
@@ -385,7 +390,7 @@ fun OnboardingScreen(
                 // 步骤 5：财务资产安全垫 (GOLD)
                 // =========================================================
                 5 -> {
-                    RetroContainer(title = "阶段 5/6 · 资产防御安全垫", subtitle = "GOLD / FORTUNE") {
+                    RetroContainer(title = "阶段 5/6 · 资产防御安全垫", subtitle = "GOLD") {
                         AiInterviewerPrompt(
                             prompt = "「《高性价比人生指南》强调防御先于进攻。你的储蓄率、应急储备金与现金流意识处于何种水平？」",
                             primaryColor = primaryGreen,
@@ -417,7 +422,7 @@ fun OnboardingScreen(
                 // 步骤 6：人际羁绊与支持系统 (BND)
                 // =========================================================
                 6 -> {
-                    RetroContainer(title = "阶段 6/6 · 人际羁绊支持网", subtitle = "BND / BOND") {
+                    RetroContainer(title = "阶段 6/6 · 人际羁绊支持网", subtitle = "BND") {
                         AiInterviewerPrompt(
                             prompt = "「在你的现实生活中，是否有能提供深度情感支持的核心亲密关系、同频战友或高价值良师？」",
                             primaryColor = primaryGreen,
