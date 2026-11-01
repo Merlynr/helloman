@@ -319,7 +319,6 @@ fun JournalScreen(repository: LifeOnlineRepository) {
                             }
                         }
                     },
-                    onAddSensorSteps = { repository.sensorManager.addManualSteps(1000) },
                     onExecuteSettlement = {
                         scope.launch {
                             isSettling = true
@@ -593,7 +592,6 @@ private fun DailyModeContent(
     onToggleTask: (TaskItem) -> Unit,
     onDeleteTask: (TaskItem) -> Unit,
     onAddSingleTask: () -> Unit,
-    onAddSensorSteps: () -> Unit,
     onExecuteSettlement: () -> Unit,
     onNavigateToCampaign: () -> Unit,
     isCartridge: Boolean
@@ -676,7 +674,7 @@ private fun DailyModeContent(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "今日计步传感器",
+                    text = "今日计步传感器 (硬件实时同步)",
                     color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 11.sp
@@ -690,16 +688,20 @@ private fun DailyModeContent(
                 )
             }
 
-            Button(
-                onClick = onAddSensorSteps,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isCartridge) CartridgeGreen else RetroDarkBg,
-                    contentColor = if (isCartridge) CartridgeCard else RetroGreenPrimary
-                ),
-                shape = RoundedCornerShape(4.dp),
-                modifier = Modifier.height(34.dp)
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(if (isCartridge) Color(0xFFEDE9DF) else RetroDarkBg)
+                    .border(1.dp, if (isCartridge) CartridgeBorder.copy(alpha = 0.5f) else RetroCardBorder, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
             ) {
-                Text("+1000步测试", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                Text(
+                    text = "● 自动记录中",
+                    color = primaryGreen,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp
+                )
             }
         }
     }
