@@ -1,51 +1,103 @@
-name: Build Android APK (Life Online)
+name: CI - Android APK & Server (Life Online)
 
 on:
   push:
     branches: [ "master", "main" ]
     tags:
       - "v*"
-  workflow_dispatch: # 支持在 GitHub 网页上点击 "Run workflow" 手动触发编译
+  pull_request:
+    branches: [ "master", "main" ]
+  workflow_dispatch: # 支持在 GitHub 网页一键点击 "Run workflow" 手动触发构建
+
+# 赋予自动发布 Release 所需的权限
+permissions:
+  contents: write
 
 jobs:
-  build:
-    name: Build & Export APK
+  # --------------------------------------------------------------------------
+  # Job 1: 服务端 Python 自动化测试与语法校验
+  # --------------------------------------------------------------------------
+  test-server:
+    name: 🐍 测试服务端引擎 (Test Python Server)
     runs-on: ubuntu-latest
-
     steps:
-      - name: 检出仓库代码 (Checkout Repository)
+      - name: 检出代码 (Checkout)
         uses: actions/checkout@v4
 
-      - name: 配置 Java 21 运行环境 (Set up JDK 21)
+      - name: 配置 Python 环境 (Set up Python 3.11)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: 安装 Python 依赖 (Install Dependencies)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r server/requirements.txt
+
+      - name: 冒烟测试裁决引擎 (Smoke Test Scale Engine)
+        run: |
+          cd server
+          python -c "from scale_engine import HowToLiveBetterEngine; res = HowToLiveBetterEngine.evaluate_decomposition('上午写代码2小时，下午跑步5公里'); print('Decompose Test Success:', res)"
+
+  # --------------------------------------------------------------------------
+  # Job 2: 安卓 APK 云端编译与产物输出
+  # --------------------------------------------------------------------------
+  build-apk:
+    name: 📱 编译安卓 APK (Build Android APK)
+    runs-on: ubuntu-latest
+    needs: test-server # 服务端测试通过后编译 APK
+
+    steps:
+      - name: 检出代码 (Checkout Repository)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 配置 Java 21 环境 (Set up JDK 21)
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '21'
-          cache: 'gradle'
+          distribution: "temurin"
+          java-version: "21"
+          cache: "gradle"
 
-      - name: 配置 Gradle 执行权限 (Chmod Gradle Wrapper)
+      - name: 赋予 Gradle 脚本执行权限 (Chmod gradlew)
         run: chmod +x ./gradlew
 
-      - name: 云端执行 Gradle 编译 (Assemble Debug APK)
-        run: ./gradlew assembleDebug --no-daemon
+      - name: 执行 Gradle 编译 Debug APK (Assemble Debug)
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: 整理与命名编译产物 (Prepare Artifacts)
+      - name: 提取版本号并重命名产物 (Prepare Output APK)
+        id: prepare_apk
         run: |
           mkdir -p output/
-          cp app/build/outputs/apk/debug/app-debug.apk output/LifeOnline-Debug.apk
+          VERSION_NAME=$(grep -o 'versionName = "[^"]*"' app/build.gradle.kts | cut -d'"' -f2)
+          if [ -z "$VERSION_NAME" ]; then
+            VERSION_NAME="1.2.0"
+          fi
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          APK_NAME="LifeOnline-v${VERSION_NAME}-${SHORT_SHA}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "output/${APK_NAME}"
+          cp app/build/outputs/apk/debug/app-debug.apk "output/LifeOnline-latest.apk"
+          echo "apk_name=${APK_NAME}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION_NAME}" >> $GITHUB_OUTPUT
+          ls -lh output/
 
-      - name: 上传构建产物 (Upload APK to Artifacts)
+      - name: 上传构建产物至 GitHub Artifacts (随时下载)
         uses: actions/upload-artifact@v4
         with:
-          name: LifeOnline-Debug-APK
-          path: output/LifeOnline-Debug.apk
+          name: ${{ steps.prepare_apk.outputs.apk_name }}
+          path: output/*.apk
           retention-days: 30
 
-      - name: 自动发布为 GitHub Release (仅在打 tag 时发布)
+      # 当推送了 Git 标签 (如 git tag v1.2.0 && git push origin v1.2.0) 时自动发布 Release
+      - name: 自动创建 GitHub Release 官方发布版
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: output/LifeOnline-Debug.apk
+          files: |
+            output/${{ steps.prepare_apk.outputs.apk_name }}
+            output/LifeOnline-latest.apk
           name: "人生 Online ${{ github.ref_name }}"
           draft: false
           prerelease: false
