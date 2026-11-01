@@ -19,6 +19,7 @@ import com.lifeonline.app.data.model.SedentaryStatus
 import com.lifeonline.app.data.model.SleepRecord
 import com.lifeonline.app.data.model.TaskItem
 import com.lifeonline.app.data.model.UserStats
+import com.lifeonline.app.data.scale.LifeVelocityCalculator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -147,6 +148,10 @@ class KeepAliveMonitorService : Service() {
                 val durationHrs = String.format(java.util.Locale.getDefault(), "%.1f", sleep.durationMinutes / 60.0f)
                 appendLine("🌙 作息研判：$sleepTag · 睡眠 ${durationHrs}h (健康分:${sleep.sleepScore})")
             }
+
+            // 宏观生命流速 (综合身体属性、步数、睡眠与久坐)
+            val velocity = LifeVelocityCalculator.calculate(stats, steps, sleep, sedentary)
+            appendLine("⚡ 生命流速：${velocity.factorText} · ${velocity.statusTag}")
 
             if (campaign != null) {
                 appendLine("🎯 阶段战役：${campaign.title} [${campaign.currentProgress}/${campaign.targetTotal}${campaign.unit}] (${(campaign.progressPercent * 100).toInt()}%)")

@@ -397,6 +397,8 @@ fun JournalScreen(repository: LifeOnlineRepository) {
                     chapter = activeChapter,
                     userStats = userStats,
                     steps = steps,
+                    sleepRecord = latestSleepRecord,
+                    sedentaryStatus = sedentaryStatus,
                     activeCampaign = activeCampaign,
                     onEditChapter = { editingChapter = activeChapter },
                     onNavigateToCampaign = { currentMode = JournalMode.CAMPAIGN },
@@ -487,8 +489,10 @@ fun JournalScreen(repository: LifeOnlineRepository) {
     // 晨间作息回血结算弹窗 (首次开屏或手动触发)
     val shouldShowMorningDialog = showSleepReportDialog || (latestSleepRecord != null && !latestSleepRecord!!.isDismissed)
     if (shouldShowMorningDialog && latestSleepRecord != null) {
+        val velocity = LifeVelocityCalculator.calculate(userStats ?: UserStats(), steps, latestSleepRecord, sedentaryStatus)
         MorningSettlementDialog(
             record = latestSleepRecord!!,
+            velocityResult = velocity,
             onDismiss = {
                 showSleepReportDialog = false
                 repository.routineDetector.dismissLatestSleepRecord()
@@ -1815,6 +1819,8 @@ private fun ChapterModeContent(
     chapter: LifeChapter?,
     userStats: UserStats?,
     steps: Int,
+    sleepRecord: SleepRecord? = null,
+    sedentaryStatus: SedentaryStatus = SedentaryStatus(),
     activeCampaign: Campaign?,
     onEditChapter: () -> Unit,
     onNavigateToCampaign: () -> Unit,
@@ -1854,9 +1860,9 @@ private fun ChapterModeContent(
     val isCurrent = selectedStageIndex == defaultStageIndex
     val isFuture = selectedStageIndex > defaultStageIndex
 
-    // 生命流速计算
-    val velocityResult = remember(userStats, steps) {
-        LifeVelocityCalculator.calculate(userStats ?: UserStats(), steps)
+    // 生命流速计算 (深度融合昨夜睡眠质量与日间久坐)
+    val velocityResult = remember(userStats, steps, sleepRecord, sedentaryStatus) {
+        LifeVelocityCalculator.calculate(userStats ?: UserStats(), steps, sleepRecord, sedentaryStatus)
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -2052,6 +2058,39 @@ private fun ChapterModeContent(
                                 fontSize = 10.sp,
                                 lineHeight = 14.sp
                             )
+
+                            if (velocityResult.sleepImpactDesc.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = "🌙 睡眠节律调谐: ${velocityResult.sleepImpactDesc}",
+                                    color = if (velocityResult.sleepImpactDesc.contains("⚠️")) CartridgeAccentRed else primaryGreen,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            if (velocityResult.sedentaryImpactDesc.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = velocityResult.sedentaryImpactDesc,
+                                    color = CartridgeAccentRed,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            if (velocityResult.hasLongevityBuff) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "🏆【龟息充盈·自律抗衰】Buff 激活！流速压至 0.80x 极慢衰老",
+                                    color = CartridgeGreen,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
                         }
                     }
 

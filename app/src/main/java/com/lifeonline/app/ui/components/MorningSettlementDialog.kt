@@ -28,6 +28,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.lifeonline.app.data.model.SleepRecord
+import com.lifeonline.app.data.model.UserStats
+import com.lifeonline.app.data.scale.LifeVelocityCalculator
+import com.lifeonline.app.data.scale.LifeVelocityResult
 import com.lifeonline.app.ui.theme.CartridgeAccentRed
 import com.lifeonline.app.ui.theme.CartridgeBg
 import com.lifeonline.app.ui.theme.CartridgeCardBg
@@ -42,6 +45,7 @@ import java.util.Locale
 @Composable
 fun MorningSettlementDialog(
     record: SleepRecord,
+    velocityResult: LifeVelocityResult? = null,
     onDismiss: () -> Unit
 ) {
     val isLate = record.isLateNight
@@ -244,6 +248,61 @@ fun MorningSettlementDialog(
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (record.hpDelta >= 0) CartridgeForestGreen else CartridgeAccentRed
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // 今日生命流速预测看板 (Life Velocity Impact)
+                val velocity = velocityResult ?: LifeVelocityCalculator.calculate(UserStats(), 0, record)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            if (velocity.isWarning) CartridgeAccentRed.copy(alpha = 0.08f)
+                            else CartridgeForestGreen.copy(alpha = 0.08f),
+                            RoundedCornerShape(8.dp)
+                        )
+                        .border(
+                            1.dp,
+                            if (velocity.isWarning) CartridgeAccentRed.copy(alpha = 0.4f)
+                            else CartridgeForestGreen.copy(alpha = 0.4f),
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(12.dp)
+                ) {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "⚡ 今日生命流速预测",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (velocity.isWarning) CartridgeAccentRed else CartridgeForestGreen,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Text(
+                                text = velocity.factorText,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Black,
+                                color = if (velocity.isWarning) CartridgeAccentRed else CartridgeForestGreen,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = if (velocity.hasLongevityBuff) "🏆 达成连续7天健康作息，【龟息充盈】极慢衰老护盾生效中 (0.80x)"
+                            else if (velocity.sleepImpactDesc.isNotBlank()) "调谐拆解: ${velocity.sleepImpactDesc}"
+                            else velocity.statusTag,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (velocity.isWarning) CartridgeAccentRed else CartridgeForestGreen
                         )
                     }
                 }
