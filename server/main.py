@@ -29,6 +29,9 @@ app.add_middleware(
 class GenesisRequest(BaseModel):
     background: str
 
+class DecomposeRequest(BaseModel):
+    text: str
+
 class SettleRequest(BaseModel):
     date: Optional[str] = None
     rawInput: str
@@ -61,6 +64,19 @@ def root():
 @app.get("/api/status")
 def get_status():
     return ArchiveManager.get_profile()
+
+@app.post("/api/decompose")
+def decompose_tasks(req: DecomposeRequest):
+    """
+    根据语音或文本输入，AI 智能拆解为任务列表
+    """
+    if not req.text.strip():
+        raise HTTPException(status_code=400, detail="输入内容不能为空")
+    tasks = HowToLiveBetterEngine.evaluate_decomposition(req.text)
+    return {
+        "status": "success",
+        "tasks": tasks
+    }
 
 @app.post("/api/genesis")
 def character_genesis(req: GenesisRequest):

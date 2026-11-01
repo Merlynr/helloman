@@ -2,8 +2,10 @@ package com.lifeonline.app.data.scale
 
 import com.lifeonline.app.data.model.AttributeDeltas
 import com.lifeonline.app.data.model.CharacterGenesisResult
+import com.lifeonline.app.data.model.DecomposedTask
 import com.lifeonline.app.data.model.ScaleEvaluation
 import com.lifeonline.app.data.model.SettlementResult
+import com.lifeonline.app.data.model.TaskType
 import com.lifeonline.app.data.model.TraitItem
 import com.lifeonline.app.data.model.UserStats
 
@@ -230,5 +232,82 @@ $todayInput
                 TraitItem("习惯探索中", "每日任务打卡将强化意志韧性", isDebuff = false)
             )
         )
+    }
+
+    /**
+     * 构建 AI 任务拆解 Prompt
+     */
+    fun buildDecomposePrompt(userInput: String): String {
+        return """
+用户输入了一段打算做的事或语音随记：
+"$userInput"
+
+请根据《高性价比人生指南》的循证理念，将这段内容智能拆解为 1~6 个具体的、可执行的原子任务（Task Item）。
+对每个任务：
+1. title: 简明行动标题（如："完成服务器部署文档", "户外跑步 5 公里", "记账核算今日开销"）
+2. taskType: 高频微习惯填 "DAILY"，单次/具体事项填 "SIDE_QUEST"
+3. targetAttribute: 五维属性之一："TEC" (技能/脑力), "VIT" (体魄/健康), "SAN" (心力/自律), "GOLD" (财务/资产), "REL" (社交/人际)
+4. expReward: 预计耗时与难度匹配的经验值 (10 ~ 30 之间)
+
+请严格输出 JSON 数组，不要包含多余文字：
+[
+  {
+    "title": "任务简明标题",
+    "taskType": "DAILY",
+    "targetAttribute": "VIT",
+    "expReward": 15
+  }
+]
+""".trimIndent()
+    }
+
+    /**
+     * 离线确定性任务拆解兜底规则
+     */
+    fun createOfflineDecomposedTasks(input: String): List<DecomposedTask> {
+        val parts = input.split(Regex("[，,。；;、!\\?！？\\n\\r]+|\\s+(?:然后|并且|顺便|接着|再)\\s*|(?:然后|并且|顺便|接着|再去|再做)"))
+        val results = mutableListOf<DecomposedTask>()
+        for (part in parts) {
+            var s = part.trim()
+            if (s.isEmpty()) continue
+            s = s.replace(Regex("^(?:今天|打算|先|准备|下午|上午|晚上|中午|计划|要|去)+"), "").trim()
+            if (s.length < 2) continue
+
+            val lower = s.lowercase()
+            val attr = when {
+                lower.any { it in "代码编程开发写学读书系统研究文档算法部署工" } -> "TEC"
+                lower.any { it in "跑健身走步运动拉伸游泳骑行球睡体检练" } -> "VIT"
+                lower.any { it in "冥想静心专注复盘反思深呼吸早起" } -> "SAN"
+                lower.any { it in "花买账记账支出理财省钱资产" } -> "GOLD"
+                lower.any { it in "聊聚朋友家人电话沟通拜访聚餐" } -> "REL"
+                else -> "VIT"
+            }
+
+            val isDaily = lower.contains("早睡") || lower.contains("步") || lower.contains("水") ||
+                          lower.contains("拉伸") || lower.contains("打卡") || lower.contains("记账") ||
+                          lower.contains("背单词")
+
+            val type = if (isDaily) TaskType.DAILY else TaskType.SIDE_QUEST
+            val exp = if (isDaily) 15 else 20
+
+            results.add(DecomposedTask(
+                title = s,
+                taskType = type,
+                targetAttribute = attr,
+                expReward = exp,
+                isSelected = true
+            ))
+        }
+
+        if (results.isEmpty()) {
+            results.add(DecomposedTask(
+                title = input.trim(),
+                taskType = TaskType.DAILY,
+                targetAttribute = "VIT",
+                expReward = 15,
+                isSelected = true
+            ))
+        }
+        return results
     }
 }

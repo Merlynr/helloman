@@ -5,6 +5,7 @@ import com.lifeonline.app.data.local.AppDatabase
 import com.lifeonline.app.data.model.BuffItem
 import com.lifeonline.app.data.model.CharacterGenesisResult
 import com.lifeonline.app.data.model.DailyLog
+import com.lifeonline.app.data.model.DecomposedTask
 import com.lifeonline.app.data.model.SettlementResult
 import com.lifeonline.app.data.model.TaskItem
 import com.lifeonline.app.data.model.TaskType
@@ -179,6 +180,37 @@ class LifeOnlineRepository(
             expReward = exp
         )
         database.taskDao().insertTask(task)
+    }
+
+    /**
+     * 语音或自然语言输入 -> AI 任务拆解
+     * 优先级：若有 API Key 优先直连大模型；次选电脑/云端 Daemon；最后离线规则引擎
+     */
+    suspend fun decomposeInputToTasks(text: String): List<DecomposedTask> {
+        return if (aiClient.apiKey.isNotBlank()) {
+            aiClient.decomposeTasks(text)
+        } else {
+            val daemonResult = daemonClient.decomposeTasks(text)
+            daemonResult ?: aiClient.decomposeTasks(text)
+        }
+    }
+
+    /**
+     * 批量插入拆解确认的任务
+     */
+    suspend fun addBatchTasks(decomposedTasks: List<DecomposedTask>) {
+        val taskItems = decomposedTasks.filter { it.isSelected && it.title.isNotBlank() }.map {
+            TaskItem(
+                title = it.title,
+                taskType = it.taskType,
+                targetAttribute = it.targetAttribute,
+                expReward = it.expReward,
+                isCompleted = false
+            )
+        }
+        if (taskItems.isNotEmpty()) {
+            database.taskDao().insertTasks(taskItems)
+        }
     }
 
     suspend fun deleteTask(task: TaskItem) {

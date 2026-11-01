@@ -4,7 +4,9 @@ import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.lifeonline.app.data.model.CharacterGenesisResult
+import com.lifeonline.app.data.model.DecomposedTask
 import com.lifeonline.app.data.model.SettlementResult
+import com.lifeonline.app.data.model.TaskType
 import com.lifeonline.app.data.model.UserStats
 import com.lifeonline.app.data.scale.HowToLiveBetterScale
 import kotlinx.coroutines.Dispatchers
@@ -126,6 +128,57 @@ class AiClient(private val context: Context) {
         }
     }
 
+    suspend fun decomposeTasks(userInput: String): List<DecomposedTask> = withContext(Dispatchers.IO) {
+        if (apiKey.isBlank()) {
+            return@withContext HowToLiveBetterScale.createOfflineDecomposedTasks(userInput)
+        }
+
+        try {
+            val userPrompt = HowToLiveBetterScale.buildDecomposePrompt(userInput)
+            val jsonResponse = callLlm(HowToLiveBetterScale.SYSTEM_BENCHMARK_PROMPT, userPrompt)
+            val cleanJson = extractJson(jsonResponse)
+
+            val list = mutableListOf<DecomposedTask>()
+            if (cleanJson.startsWith("[")) {
+                val array = gson.fromJson(cleanJson, com.google.gson.JsonArray::class.java)
+                array.forEach { elem ->
+                    val obj = elem.asJsonObject
+                    val title = obj.get("title")?.asString ?: ""
+                    val typeStr = obj.get("taskType")?.asString ?: "DAILY"
+                    val attr = obj.get("targetAttribute")?.asString ?: "VIT"
+                    val exp = obj.get("expReward")?.asInt ?: 15
+                    val taskType = if (typeStr == "SIDE_QUEST") TaskType.SIDE_QUEST else TaskType.DAILY
+                    if (title.isNotBlank()) {
+                        list.add(DecomposedTask(title, taskType, attr, exp, true))
+                    }
+                }
+            } else if (cleanJson.startsWith("{")) {
+                val root = gson.fromJson(cleanJson, JsonObject::class.java)
+                for (key in listOf("tasks", "items", "data")) {
+                    if (root.has(key) && root.get(key).isJsonArray) {
+                        val array = root.getAsJsonArray(key)
+                        array.forEach { elem ->
+                            val obj = elem.asJsonObject
+                            val title = obj.get("title")?.asString ?: ""
+                            val typeStr = obj.get("taskType")?.asString ?: "DAILY"
+                            val attr = obj.get("targetAttribute")?.asString ?: "VIT"
+                            val exp = obj.get("expReward")?.asInt ?: 15
+                            val taskType = if (typeStr == "SIDE_QUEST") TaskType.SIDE_QUEST else TaskType.DAILY
+                            if (title.isNotBlank()) {
+                                list.add(DecomposedTask(title, taskType, attr, exp, true))
+                            }
+                        }
+                        break
+                    }
+                }
+            }
+            if (list.isNotEmpty()) list else HowToLiveBetterScale.createOfflineDecomposedTasks(userInput)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            HowToLiveBetterScale.createOfflineDecomposedTasks(userInput)
+        }
+    }
+
     private fun callLlm(systemPrompt: String, userPrompt: String): String {
         val url = if (baseUrl.endsWith("/")) "${baseUrl}chat/completions" else "$baseUrl/chat/completions"
 
@@ -164,16 +217,27 @@ class AiClient(private val context: Context) {
     }
 
     private fun extractJson(text: String): String {
-        val trimmed = text.trim()
+        var trimmed = text.trim()
         val jsonPattern = Regex("""```(?:json)?\s*([\s\S]*?)\s*```""")
         val match = jsonPattern.find(trimmed)
         if (match != null) {
-            return match.groupValues[1].trim()
+            trimmed = match.groupValues[1].trim()
         }
+        val firstBracket = trimmed.indexOf('[')
         val firstBrace = trimmed.indexOf('{')
-        val lastBrace = trimmed.lastIndexOf('}')
-        if (firstBrace != -1 && lastBrace != -1 && lastBrace > firstBrace) {
-            return trimmed.substring(firstBrace, lastBrace + 1)
+
+        if (firstBracket != -1 && (firstBrace == -1 || firstBracket < firstBrace)) {
+            val lastBracket = trimmed.lastIndexOf(']')
+            if (lastBracket != -1 && lastBracket > firstBracket) {
+                return trimmed.substring(firstBracket, lastBracket + 1)
+            }
+        }
+
+        if (firstBrace != -1) {
+            val lastBrace = trimmed.lastIndexOf('}')
+            if (lastBrace != -1 && lastBrace > firstBrace) {
+                return trimmed.substring(firstBrace, lastBrace + 1)
+            }
         }
         return trimmed
     }

@@ -4,7 +4,9 @@ import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.lifeonline.app.data.model.CharacterGenesisResult
+import com.lifeonline.app.data.model.DecomposedTask
 import com.lifeonline.app.data.model.SettlementResult
+import com.lifeonline.app.data.model.TaskType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -87,6 +89,36 @@ class DaemonClient(private val context: Context) {
                     val root = gson.fromJson(respStr, JsonObject::class.java)
                     val settleJson = root.getAsJsonObject("settlement")
                     return@withContext gson.fromJson(settleJson, SettlementResult::class.java)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        null
+    }
+
+    suspend fun decomposeTasks(text: String): List<DecomposedTask>? = withContext(Dispatchers.IO) {
+        try {
+            val url = "$serverUrl/api/decompose"
+            val body = gson.toJson(mapOf("text" to text)).toRequestBody("application/json".toMediaType())
+            val request = Request.Builder().url(url).post(body).build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val respStr = response.body?.string() ?: ""
+                    val root = gson.fromJson(respStr, JsonObject::class.java)
+                    val tasksArray = root.getAsJsonArray("tasks")
+                    val list = mutableListOf<DecomposedTask>()
+                    tasksArray?.forEach { elem ->
+                        val obj = elem.asJsonObject
+                        val title = obj.get("title")?.asString ?: ""
+                        val typeStr = obj.get("taskType")?.asString ?: "DAILY"
+                        val attr = obj.get("targetAttribute")?.asString ?: "VIT"
+                        val exp = obj.get("expReward")?.asInt ?: 15
+                        val taskType = if (typeStr == "SIDE_QUEST") TaskType.SIDE_QUEST else TaskType.DAILY
+                        list.add(DecomposedTask(title, taskType, attr, exp, true))
+                    }
+                    return@withContext list
                 }
             }
         } catch (e: Exception) {

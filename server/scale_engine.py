@@ -38,6 +38,104 @@ class HowToLiveBetterEngine:
 """
 
     @classmethod
+    def evaluate_decomposition(cls, input_text: str) -> List[Dict[str, Any]]:
+        """
+        根据用户的一句话日常或语音转文字，智能拆解为若干原子任务清单，并附带五维属性、任务类型及 EXP
+        """
+        if API_KEY:
+            try:
+                user_prompt = f"""
+用户输入了一段今日打算做的事或语音日记：
+"{input_text}"
+
+请将这段内容智能拆解为 1~6 个具体的、可执行的原子任务（Task Item）。
+对每个任务：
+1. title: 任务简明行动标题（例如："完成服务器部署文档", "户外跑步 5 公里", "记账核算今日开销"）
+2. taskType: 如果是高频微习惯（如早睡、喝水、运动、记账、背单词）填 "DAILY"；如果是单次/具体事项填 "SIDE_QUEST"
+3. targetAttribute: 该任务主要磨砺的五维属性之一："TEC" (脑力/技能), "VIT" (体魄/健康), "SAN" (心力/自律), "GOLD" (财务/资产), "REL" (社交/人际)
+4. expReward: 预计耗时与难度匹配的经验值，在 10 ~ 30 之间（微习惯通常 10~15，深度挑战 20~30）
+
+请严格输出 JSON 数组，格式如下，不要输出任何多余解释文字：
+[
+  {{
+    "title": "任务简明行动标题",
+    "taskType": "DAILY",
+    "targetAttribute": "VIT",
+    "expReward": 15
+  }}
+]
+"""
+                resp = cls._call_llm(cls.SYSTEM_BENCHMARK_PROMPT, user_prompt)
+                clean_json = cls._extract_json(resp).strip()
+                if clean_json.startswith('{'):
+                    data = json.loads(clean_json)
+                    for k in ["tasks", "items", "data"]:
+                        if k in data and isinstance(data[k], list):
+                            return data[k]
+                data = json.loads(clean_json)
+                if isinstance(data, list) and len(data) > 0:
+                    return data
+            except Exception as e:
+                print(f"[Engine] 大模型推演 Decompose 异常，降级到本地规则: {e}")
+
+        return cls._local_decomposition_fallback(input_text)
+
+    @classmethod
+    def _local_decomposition_fallback(cls, input_text: str) -> List[Dict[str, Any]]:
+        """
+        离线确定性拆解兜底规则
+        """
+        raw_parts = re.split(r'[，,。；;、!\?！？\n\r]+|\s+(?:然后|并且|顺便|接着|再)\s*|(?:然后|并且|顺便|接着|再去|再做)', input_text)
+        results = []
+        for part in raw_parts:
+            s = part.strip()
+            if not s:
+                continue
+            # 清理常见口语前缀
+            s = re.sub(r'^(?:今天|打算|先|准备|下午|上午|晚上|中午|计划|要|去)+', '', s).strip()
+            if len(s) < 2:
+                continue
+
+            lower = s.lower()
+            # 属性推断
+            if any(w in lower for w in ["代码", "编程", "开发", "写", "学", "读", "书", "系统", "研究", "文档", "算法", "部署", "工"]):
+                attr = "TEC"
+            elif any(w in lower for w in ["跑", "健身", "走", "步", "运动", "拉伸", "游泳", "骑行", "球", "睡", "体检", "练"]):
+                attr = "VIT"
+            elif any(w in lower for w in ["冥想", "静心", "专注", "复盘", "反思", "深呼吸", "早起"]):
+                attr = "SAN"
+            elif any(w in lower for w in ["花", "买", "账", "记账", "支出", "理财", "省", "钱", "资产"]):
+                attr = "GOLD"
+            elif any(w in lower for w in ["聊", "聚", "朋友", "家人", "电话", "沟通", "拜访", "聚餐"]):
+                attr = "REL"
+            else:
+                attr = "VIT"
+
+            # 类型推断
+            if any(w in lower for w in ["早睡", "步", "水", "拉伸", "打卡", "记账", "背单词"]):
+                t_type = "DAILY"
+                exp = 15
+            else:
+                t_type = "SIDE_QUEST"
+                exp = 20
+
+            results.append({
+                "title": s,
+                "taskType": t_type,
+                "targetAttribute": attr,
+                "expReward": exp
+            })
+
+        if not results:
+            results.append({
+                "title": input_text.strip(),
+                "taskType": "DAILY",
+                "targetAttribute": "VIT",
+                "expReward": 15
+            })
+        return results
+
+    @classmethod
     def evaluate_genesis(cls, background_text: str) -> Dict[str, Any]:
         """
         根据用户过往经历推演初始角色面板（优先云端大模型，兜底规则）
@@ -169,11 +267,20 @@ class HowToLiveBetterEngine:
         text = text.strip()
         match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', text)
         if match:
-            return match.group(1).strip()
+            text = match.group(1).strip()
+        
+        first_bracket = text.find('[')
         first_brace = text.find('{')
-        last_brace = text.rfind('}')
-        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
-            return text[first_brace:last_brace + 1]
+        
+        if first_bracket != -1 and (first_brace == -1 or first_bracket < first_brace):
+            last_bracket = text.rfind(']')
+            if last_bracket != -1 and last_bracket > first_bracket:
+                return text[first_bracket:last_bracket + 1]
+
+        if first_brace != -1:
+            last_brace = text.rfind('}')
+            if last_brace != -1 and last_brace > first_brace:
+                return text[first_brace:last_brace + 1]
         return text
 
     @classmethod
