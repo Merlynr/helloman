@@ -21,6 +21,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lifeonline.app.ui.theme.CartridgeBorder
+import com.lifeonline.app.ui.theme.CartridgeGreen
+import com.lifeonline.app.ui.theme.CartridgeText
+import com.lifeonline.app.ui.theme.CartridgeTextMuted
+import com.lifeonline.app.ui.theme.CartridgeTickEmpty
+import com.lifeonline.app.ui.theme.LocalIsCartridgeTheme
 import com.lifeonline.app.ui.theme.RetroCardBorder
 import com.lifeonline.app.ui.theme.RetroDarkBg
 import com.lifeonline.app.ui.theme.RetroGreenPrimary
@@ -34,7 +40,18 @@ fun StatBar(
     barColor: Color = RetroGreenPrimary,
     modifier: Modifier = Modifier
 ) {
+    val isCartridge = LocalIsCartridgeTheme.current
     val progress = (currentValue.toFloat() / maxValue.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+
+    val labelColor = if (isCartridge) CartridgeText else RetroGreenText
+    val valueColor = if (isCartridge) CartridgeTextMuted else barColor
+    val trackBg = if (isCartridge) CartridgeTickEmpty else RetroDarkBg
+    val borderColor = if (isCartridge) CartridgeBorder else RetroCardBorder
+    val activeFillColor = if (isCartridge) {
+        if (barColor == Color(0xFFEF4444)) Color(0xFFC85A54) // HP 砖红
+        else if (barColor == Color(0xFF38BDF8)) Color(0xFF426E57) // MP 墨绿
+        else CartridgeGreen
+    } else barColor
 
     Column(modifier = modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Row(
@@ -43,35 +60,46 @@ fun StatBar(
         ) {
             Text(
                 text = label,
-                color = RetroGreenText,
+                color = labelColor,
                 fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = "$currentValue / $maxValue",
-                color = barColor,
+                color = valueColor,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold
             )
         }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(10.dp)
-                .clip(RoundedCornerShape(3.dp))
-                .background(RetroDarkBg)
-                .border(1.dp, RetroCardBorder, RoundedCornerShape(3.dp))
-        ) {
+
+        if (isCartridge) {
+            // 卡带纸质风格的刻度进度条
+            PixelSegmentedBar(
+                progress = progress,
+                totalTicks = 36,
+                activeColor = activeFillColor,
+                modifier = Modifier.fillMaxWidth().height(14.dp)
+            )
+        } else {
             Box(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(progress)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(barColor)
-            )
+                    .fillMaxWidth()
+                    .height(10.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(trackBg)
+                    .border(1.dp, borderColor, RoundedCornerShape(3.dp))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(progress)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(activeFillColor)
+                )
+            }
         }
     }
 }

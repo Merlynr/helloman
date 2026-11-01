@@ -3,7 +3,6 @@ package com.lifeonline.app.ui.screens.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +28,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,6 +43,7 @@ import com.lifeonline.app.ui.theme.CartridgeCard
 import com.lifeonline.app.ui.theme.CartridgeCardWhite
 import com.lifeonline.app.ui.theme.CartridgeGreen
 import com.lifeonline.app.ui.theme.CartridgeText
+import com.lifeonline.app.ui.theme.CartridgeTextMuted
 import com.lifeonline.app.ui.theme.LocalIsCartridgeTheme
 import com.lifeonline.app.ui.theme.RetroAmber
 import com.lifeonline.app.ui.theme.RetroCardBorder
@@ -71,6 +73,10 @@ fun SettingsScreen(
     var isTestingApi by remember { mutableStateOf(false) }
     var apiTestResult by remember { mutableStateOf("") }
 
+    val descTextColor = if (isCartridge) CartridgeText else RetroGreenText.copy(alpha = 0.7f)
+    val accentHighlight = if (isCartridge) CartridgeAccentRed else RetroAmber
+    val primaryGreen = if (isCartridge) CartridgeGreen else RetroGreenPrimary
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -82,7 +88,7 @@ fun SettingsScreen(
         RetroContainer(title = "界面画风设置", subtitle = "THEME") {
             Text(
                 text = "可随时切换复古游戏存档画风或经典赛博黑客终端画风：",
-                color = if (isCartridge) CartridgeText else RetroGreenText.copy(alpha = 0.7f),
+                color = descTextColor,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp
             )
@@ -167,7 +173,7 @@ fun SettingsScreen(
         RetroContainer(title = "C/S 模式 · 电脑端 Agent 守护进程", subtitle = "DAEMON") {
             Text(
                 text = "连接当前电脑常驻的 Python Agent 守护进程。支持 USB 调试直连 (127.0.0.1:8080) 或局域网 IP 直连。由电脑端 Agent 负责推演与持久化长程知识库。",
-                color = RetroGreenText.copy(alpha = 0.7f),
+                color = descTextColor,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
                 lineHeight = 16.sp
@@ -197,8 +203,8 @@ fun SettingsScreen(
                 },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = RetroGreenPrimary,
-                    contentColor = RetroDarkBg
+                    containerColor = primaryGreen,
+                    contentColor = if (isCartridge) CartridgeCard else RetroDarkBg
                 ),
                 shape = RoundedCornerShape(4.dp)
             ) {
@@ -209,8 +215,9 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = daemonStatus,
-                    color = if (daemonStatus.startsWith("●")) RetroGreenPrimary else RetroAmber,
+                    color = if (daemonStatus.startsWith("●")) primaryGreen else accentHighlight,
                     fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
                     fontSize = 11.sp
                 )
             }
@@ -222,7 +229,7 @@ fun SettingsScreen(
         RetroContainer(title = "AI 模型服务配置 (国内直连·全天候)", subtitle = "CONFIG") {
             Text(
                 text = "支持国内主流大模型。配置后手机将直接连接云端模型，无需开电脑，24小时随时推演结算！",
-                color = RetroGreenText.copy(alpha = 0.7f),
+                color = descTextColor,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
                 lineHeight = 16.sp
@@ -233,12 +240,12 @@ fun SettingsScreen(
             // 一键预设切换按钮
             Text(
                 text = "/// 一键快捷选择大模型提供商",
-                color = RetroAmber,
+                color = if (isCartridge) CartridgeGreen else RetroAmber,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -246,6 +253,7 @@ fun SettingsScreen(
                 PresetChip(
                     title = "智谱 GLM-4-Flash\n(官方永久免费)",
                     color = RetroGreenPrimary,
+                    isCartridge = isCartridge,
                     modifier = Modifier.weight(1f)
                 ) {
                     baseUrl = "https://open.bigmodel.cn/api/paas/v4"
@@ -254,20 +262,22 @@ fun SettingsScreen(
                 PresetChip(
                     title = "DeepSeek\n(高性价比开源名模)",
                     color = RetroAmber,
+                    isCartridge = isCartridge,
                     modifier = Modifier.weight(1f)
                 ) {
                     baseUrl = "https://api.deepseek.com/v1"
                     modelName = "deepseek-chat"
                 }
             }
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 PresetChip(
-                    title = "硅基流动\n(Qwen/DeepSeek)",
+                    title = "硅基流动\n(Qwen/SenseVoice)",
                     color = RetroGreenPrimary,
+                    isCartridge = isCartridge,
                     modifier = Modifier.weight(1f)
                 ) {
                     baseUrl = "https://api.siliconflow.cn/v1"
@@ -276,6 +286,7 @@ fun SettingsScreen(
                 PresetChip(
                     title = "通义千问\n(阿里云百炼大模型)",
                     color = RetroAmber,
+                    isCartridge = isCartridge,
                     modifier = Modifier.weight(1f)
                 ) {
                     baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -290,7 +301,7 @@ fun SettingsScreen(
                 value = apiKey,
                 onValueChange = { apiKey = it },
                 label = { Text("API Key", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
-                placeholder = { Text("sk-...", color = RetroCardBorder, fontFamily = FontFamily.Monospace) },
+                placeholder = { Text("sk-...", color = if (isCartridge) CartridgeTextMuted else RetroCardBorder, fontFamily = FontFamily.Monospace) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = textFieldColors(),
                 shape = RoundedCornerShape(4.dp),
@@ -338,8 +349,8 @@ fun SettingsScreen(
                     },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = RetroGreenPrimary,
-                        contentColor = RetroDarkBg
+                        containerColor = primaryGreen,
+                        contentColor = if (isCartridge) CartridgeCard else RetroDarkBg
                     ),
                     shape = RoundedCornerShape(4.dp)
                 ) {
@@ -362,11 +373,11 @@ fun SettingsScreen(
                     enabled = !isTestingApi,
                     modifier = Modifier.weight(1.3f),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = RetroDarkBg,
-                        contentColor = RetroAmber
+                        containerColor = if (isCartridge) CartridgeCardWhite else RetroDarkBg,
+                        contentColor = accentHighlight
                     ),
                     shape = RoundedCornerShape(4.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, RetroAmber)
+                    border = androidx.compose.foundation.BorderStroke(1.2.dp, accentHighlight)
                 ) {
                     Text(
                         if (isTestingApi) "测试中..." else "[ 测试 API 连通性 ]",
@@ -381,8 +392,9 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = saveStatus,
-                    color = RetroGreenPrimary,
+                    color = primaryGreen,
                     fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
                     fontSize = 11.sp
                 )
             }
@@ -391,7 +403,7 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = apiTestResult,
-                    color = if (apiTestResult.startsWith("●")) RetroGreenPrimary else RetroRed,
+                    color = if (apiTestResult.startsWith("●")) primaryGreen else RetroRed,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 11.sp,
                     lineHeight = 15.sp
@@ -405,15 +417,15 @@ fun SettingsScreen(
         RetroContainer(title = "成长评价标尺体系", subtitle = "HowToLiveBetter") {
             Text(
                 text = "本项目经验体系严格参考 GitHub 开源项目 eternity4719/HowToLiveBetter 构建：",
-                color = RetroAmber,
+                color = if (isCartridge) CartridgeGreen else RetroAmber,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.height(6.dp))
-            BulletItem("循证科学", "拒绝玄学与虚假自律，只有具备证据等级的健康、知识与财务行为才能带来确定性复利。")
-            BulletItem("防御优先", "防重疾、防断崖式失业、防意外致贫，底线防守的权重高于短期的盲目进攻。")
-            BulletItem("多周期标尺", "近期微习惯呵护心力 -> 阶段性习惯固化 -> 长期人生护城河构筑。")
+            BulletItem("循证科学", "拒绝玄学与虚假自律，只有具备证据等级的健康、知识与财务行为才能带来确定性复利。", isCartridge)
+            BulletItem("防御优先", "防重疾、防断崖式失业、防意外致贫，底线防守的权重高于短期的盲目进攻。", isCartridge)
+            BulletItem("多周期标尺", "近期微习惯呵护心力 -> 阶段性习惯固化 -> 长期人生护城河构筑。", isCartridge)
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -422,7 +434,7 @@ fun SettingsScreen(
         RetroContainer(title = "角色管理", subtitle = "RESET") {
             Text(
                 text = "若经历有了重大飞跃，或想重新输入履历生成全新五维属性与天生特质，可点击下方重新转生。",
-                color = RetroGreenText.copy(alpha = 0.7f),
+                color = descTextColor,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp
             )
@@ -431,10 +443,11 @@ fun SettingsScreen(
                 onClick = onResetCharacter,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = RetroDarkBg,
-                    contentColor = RetroRed
+                    containerColor = if (isCartridge) Color(0xFFFBF0EF) else RetroDarkBg,
+                    contentColor = if (isCartridge) CartridgeAccentRed else RetroRed
                 ),
-                shape = RoundedCornerShape(4.dp)
+                shape = RoundedCornerShape(4.dp),
+                border = androidx.compose.foundation.BorderStroke(1.2.dp, if (isCartridge) CartridgeAccentRed else RetroRed)
             ) {
                 Text("[ 重新录入经历·重新转生 ]", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
@@ -445,18 +458,18 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun BulletItem(title: String, desc: String) {
+private fun BulletItem(title: String, desc: String, isCartridge: Boolean) {
     Column(modifier = Modifier.padding(vertical = 3.dp)) {
         Text(
             text = "• $title",
-            color = RetroGreenPrimary,
+            color = if (isCartridge) CartridgeGreen else RetroGreenPrimary,
             fontFamily = FontFamily.Monospace,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold
         )
         Text(
             text = desc,
-            color = RetroGreenText.copy(alpha = 0.8f),
+            color = if (isCartridge) CartridgeText else RetroGreenText.copy(alpha = 0.8f),
             fontFamily = FontFamily.Monospace,
             fontSize = 11.sp,
             lineHeight = 15.sp,
@@ -468,25 +481,30 @@ private fun BulletItem(title: String, desc: String) {
 @Composable
 private fun PresetChip(
     title: String,
-    color: androidx.compose.ui.graphics.Color,
+    color: Color,
+    isCartridge: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val bg = if (isCartridge) Color(0xFFF7F4EC) else RetroDarkBg
+    val borderCol = if (isCartridge) CartridgeBorder else color.copy(alpha = 0.6f)
+    val textColor = if (isCartridge) CartridgeGreen else color
+
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(4.dp))
-            .background(RetroDarkBg)
-            .border(1.dp, color.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+            .background(bg)
+            .border(1.2.dp, borderCol, RoundedCornerShape(4.dp))
             .clickable { onClick() }
-            .padding(vertical = 6.dp, horizontal = 4.dp),
+            .padding(vertical = 8.dp, horizontal = 4.dp),
         contentAlignment = androidx.compose.ui.Alignment.Center
     ) {
         Text(
             text = title,
-            color = color,
+            color = textColor,
             fontFamily = FontFamily.Monospace,
             fontSize = 10.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Bold,
             lineHeight = 13.sp,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )

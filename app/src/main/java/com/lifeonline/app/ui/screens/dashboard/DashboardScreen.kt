@@ -1,6 +1,7 @@
 package com.lifeonline.app.ui.screens.dashboard
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,7 +35,13 @@ import com.lifeonline.app.ui.components.BuffChip
 import com.lifeonline.app.ui.components.RadarChart
 import com.lifeonline.app.ui.components.RetroContainer
 import com.lifeonline.app.ui.components.StatBar
+import com.lifeonline.app.ui.theme.CartridgeAccentRed
 import com.lifeonline.app.ui.theme.CartridgeBg
+import com.lifeonline.app.ui.theme.CartridgeBorder
+import com.lifeonline.app.ui.theme.CartridgeCard
+import com.lifeonline.app.ui.theme.CartridgeGreen
+import com.lifeonline.app.ui.theme.CartridgeText
+import com.lifeonline.app.ui.theme.CartridgeTextMuted
 import com.lifeonline.app.ui.theme.LocalIsCartridgeTheme
 import com.lifeonline.app.ui.theme.RetroAmber
 import com.lifeonline.app.ui.theme.RetroBlue
@@ -53,11 +60,14 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
     val steps by repository.stepsFlow.collectAsState()
     val dailyLogs by repository.dailyLogsFlow.collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
+    val isCartridge = LocalIsCartridgeTheme.current
 
     val stats = userStats ?: UserStats()
     val latestLog = dailyLogs.firstOrNull()
 
-    val isCartridge = LocalIsCartridgeTheme.current
+    val textColor = if (isCartridge) CartridgeText else RetroGreenText
+    val subtitleColor = if (isCartridge) CartridgeAccentRed else RetroAmber
+    val mutedColor = if (isCartridge) CartridgeTextMuted else RetroGreenText.copy(alpha = 0.7f)
 
     Column(
         modifier = Modifier
@@ -75,32 +85,35 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = stats.name,
-                        color = RetroGreenText,
+                        color = textColor,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
                         fontSize = 17.sp
                     )
                     Text(
                         text = "称号: ${stats.title}",
-                        color = RetroAmber,
+                        color = subtitleColor,
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
-                // 等级徽章
+
+                // 等级徽章 (卡带墨绿 vs 黑客暗黑)
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
-                        .background(RetroDarkBg)
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                        .background(if (isCartridge) CartridgeGreen else RetroDarkBg)
+                        .border(1.2.dp, if (isCartridge) CartridgeBorder else RetroCardBorder, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "Lv. ${stats.level}",
-                        color = RetroGreenPrimary,
+                        color = if (isCartridge) CartridgeCard else RetroGreenPrimary,
                         fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 18.sp
+                        fontWeight = FontWeight.Black,
+                        fontSize = 16.sp
                     )
                 }
             }
@@ -112,7 +125,7 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
                 label = "EXP 经验值",
                 currentValue = stats.exp,
                 maxValue = stats.maxExp,
-                barColor = RetroAmber
+                barColor = if (isCartridge) CartridgeAccentRed else RetroAmber
             )
 
             // 生命值 (HP) 与 精力值 (MP)
@@ -142,18 +155,18 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
                 rel = stats.rel
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // 属性数值横排
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
-                StatValueItem("智力 TEC", stats.tec)
-                StatValueItem("气血 VIT", stats.vit)
-                StatValueItem("心力 SAN", stats.san)
-                StatValueItem("财力 GOLD", stats.gold)
-                StatValueItem("人脉 REL", stats.rel)
+                StatValueItem("智力 TEC", stats.tec, isCartridge)
+                StatValueItem("气血 VIT", stats.vit, isCartridge)
+                StatValueItem("心力 SAN", stats.san, isCartridge)
+                StatValueItem("财力 GOLD", stats.gold, isCartridge)
+                StatValueItem("人脉 REL", stats.rel, isCartridge)
             }
         }
 
@@ -164,7 +177,7 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
             if (buffs.isEmpty()) {
                 Text(
                     text = "暂无特殊状态，保持高性价比规律自律可解锁强力 BUFF！",
-                    color = RetroCardBorder,
+                    color = mutedColor,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 11.sp
                 )
@@ -193,7 +206,7 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
             RetroContainer(title = "最新结算战报", subtitle = latestLog.dateString) {
                 Text(
                     text = latestLog.dialogue,
-                    color = RetroGreenText,
+                    color = textColor,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 12.sp,
                     lineHeight = 17.sp
@@ -202,8 +215,9 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
                 Row {
                     Text(
                         text = "掉落经验: +${latestLog.expGained} | 传感器步数: ${latestLog.stepCount}步",
-                        color = RetroAmber,
+                        color = subtitleColor,
                         fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
                         fontSize = 11.sp
                     )
                 }
@@ -215,20 +229,21 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
 }
 
 @Composable
-private fun StatValueItem(label: String, value: Int) {
+private fun StatValueItem(label: String, value: Int, isCartridge: Boolean) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = value.toString(),
-            color = RetroGreenPrimary,
+            color = if (isCartridge) CartridgeGreen else RetroGreenPrimary,
             fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp
+            fontWeight = FontWeight.Black,
+            fontSize = 15.sp
         )
         Text(
             text = label,
-            color = RetroGreenText.copy(alpha = 0.7f),
+            color = if (isCartridge) CartridgeTextMuted else RetroGreenText.copy(alpha = 0.7f),
             fontFamily = FontFamily.Monospace,
-            fontSize = 10.sp
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium
         )
     }
 }

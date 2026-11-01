@@ -1,6 +1,7 @@
 package com.lifeonline.app.ui.components
 
 import android.graphics.Paint
+import android.graphics.Typeface
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +15,10 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.dp
+import com.lifeonline.app.ui.theme.CartridgeAccentRed
+import com.lifeonline.app.ui.theme.CartridgeBorder
+import com.lifeonline.app.ui.theme.CartridgeGreen
+import com.lifeonline.app.ui.theme.LocalIsCartridgeTheme
 import com.lifeonline.app.ui.theme.RetroAmber
 import com.lifeonline.app.ui.theme.RetroCardBorder
 import com.lifeonline.app.ui.theme.RetroGreenPrimary
@@ -30,8 +35,14 @@ fun RadarChart(
     maxStat: Int = 100,
     modifier: Modifier = Modifier.height(210.dp)
 ) {
+    val isCartridge = LocalIsCartridgeTheme.current
     val labels = listOf("智力\nTEC", "气血\nVIT", "心力\nSAN", "财力\nGOLD", "人脉\nREL")
     val rawValues = listOf(tec, vit, san, gold, rel)
+
+    val gridBorderColor = if (isCartridge) CartridgeBorder.copy(alpha = 0.25f) else RetroCardBorder
+    val polygonStrokeColor = if (isCartridge) CartridgeGreen else RetroGreenPrimary
+    val polygonFillColor = if (isCartridge) Color(0xFF426E57).copy(alpha = 0.25f) else RetroGreenPrimary.copy(alpha = 0.25f)
+    val dotColor = if (isCartridge) CartridgeAccentRed else RetroAmber
 
     Box(modifier = modifier.padding(8.dp)) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -53,16 +64,18 @@ fun RadarChart(
                 gridPath.close()
                 drawPath(
                     path = gridPath,
-                    color = RetroCardBorder,
+                    color = gridBorderColor,
                     style = Stroke(width = 1.dp.toPx())
                 )
             }
 
             // 2. 绘制轴线与文本
             val textPaint = Paint().apply {
-                color = android.graphics.Color.parseColor("#DCFCE7")
-                textSize = 28f
+                color = if (isCartridge) android.graphics.Color.parseColor("#234233") else android.graphics.Color.parseColor("#DCFCE7")
+                textSize = 30f
                 textAlign = Paint.Align.CENTER
+                typeface = Typeface.MONOSPACE
+                isFakeBoldText = true
                 isAntiAlias = true
             }
 
@@ -73,7 +86,7 @@ fun RadarChart(
 
                 // 轴线
                 drawLine(
-                    color = RetroCardBorder,
+                    color = gridBorderColor,
                     start = center,
                     end = Offset(x, y),
                     strokeWidth = 1.dp.toPx()
@@ -110,21 +123,21 @@ fun RadarChart(
             // 填充半透明多边形
             drawPath(
                 path = statPath,
-                color = RetroGreenPrimary.copy(alpha = 0.25f)
+                color = polygonFillColor
             )
 
             // 绘制绿色边框
             drawPath(
                 path = statPath,
-                color = RetroGreenPrimary,
+                color = polygonStrokeColor,
                 style = Stroke(width = 2.dp.toPx())
             )
 
             // 绘制关键顶点光点
             points.forEach { pt ->
                 drawCircle(
-                    color = RetroAmber,
-                    radius = 3.5.dp.toPx(),
+                    color = dotColor,
+                    radius = 4.dp.toPx(),
                     center = pt
                 )
             }
