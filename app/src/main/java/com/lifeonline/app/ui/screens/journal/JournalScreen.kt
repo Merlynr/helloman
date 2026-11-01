@@ -1,8 +1,7 @@
 package com.lifeonline.app.ui.screens.journal
 
-import android.app.Activity
-import android.content.Intent
-import android.speech.RecognizerIntent
+import android.Manifest
+import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -21,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -59,6 +60,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.lifeonline.app.data.model.DecomposedTask
 import com.lifeonline.app.data.model.SettlementResult
 import com.lifeonline.app.data.model.TaskItem
@@ -91,31 +93,44 @@ fun JournalScreen(repository: LifeOnlineRepository) {
 
     // 语音输入与 AI 任务拆解状态
     var voiceInputText by remember { mutableStateOf("") }
+    var isRecording by remember { mutableStateOf(false) }
+    var isTranscribing by remember { mutableStateOf(false) }
     var isDecomposing by remember { mutableStateOf(false) }
     var candidateTasks by remember { mutableStateOf<List<DecomposedTask>>(emptyList()) }
 
-    val speechRecognizerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val data = result.data
-            val spokenText = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-            if (!spokenText.isNullOrBlank()) {
-                voiceInputText = spokenText
+    // 录音权限动态申请
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            val started = repository.voiceRecorder.startRecording()
+            if (started) {
+                isRecording = true
+                Toast.makeText(context, "正在录音，请说话...", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "启动录音失败，请重试", Toast.LENGTH_SHORT).show()
             }
+        } else {
+            Toast.makeText(context, "需要麦克风权限才能进行语音输入", Toast.LENGTH_LONG).show()
         }
     }
 
-    fun startVoiceRecognition() {
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "请说出您今天打算做的事或任务清单...")
-        }
-        try {
-            speechRecognizerLauncher.launch(intent)
-        } catch (e: Exception) {
-            Toast.makeText(context, "未找到系统语音识别服务，可直接在此处打字输入", Toast.LENGTH_SHORT).show()
+    fun handleMicClick() {
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!hasPermission) {
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        } else {
+            val started = repository.voiceRecorder.startRecording()
+            if (started) {
+                isRecording = true
+                Toast.makeText(context, "正在录音，请说话...", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "启动录音失败，请重试", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -148,7 +163,6 @@ fun JournalScreen(repository: LifeOnlineRepository) {
                     )
                 }
 
-                // 便捷模拟测试按钮
                 Button(
                     onClick = { repository.sensorManager.addManualSteps(1000) },
                     colors = ButtonDefaults.buttonColors(
@@ -197,57 +211,164 @@ fun JournalScreen(repository: LifeOnlineRepository) {
                     )
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    OutlinedTextField(
-                        value = voiceInputText,
-                        onValueChange = { voiceInputText = it },
-                        placeholder = {
-                            Text(
-                                "点击右侧麦克风说话，或在此打字输入 (如：上午写代码2小时，下午跑步5公里，晚上看书记账)",
-                                color = RetroCardBorderLight,
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 11.sp,
-                                lineHeight = 14.sp
-                            )
-                        },
+                // 录音状态栏
+                if (isRecording) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .weight(1f)
-                            .height(62.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = RetroGreenText,
-                            unfocusedTextColor = RetroGreenText,
-                            focusedBorderColor = RetroGreenPrimary,
-                            unfocusedBorderColor = RetroCardBorder,
-                            focusedContainerColor = RetroDarkBg,
-                            unfocusedContainerColor = RetroDarkBg
-                        ),
-                        shape = RoundedCornerShape(4.dp),
-                        textStyle = androidx.compose.ui.text.TextStyle(
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF331111))
+                            .border(1.dp, Color(0xFFFF5252), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFF5252))
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "正在录音中... 请清晰说出你的安排",
+                            color = Color(0xFFFFCDD2),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        // 完成录音按钮
+                        Button(
+                            onClick = {
+                                val audioFile = repository.voiceRecorder.stopRecording()
+                                isRecording = false
+                                if (audioFile != null && audioFile.exists() && audioFile.length() > 0) {
+                                    scope.launch {
+                                        isTranscribing = true
+                                        try {
+                                            val text = repository.transcribeAudio(audioFile)
+                                            if (text.isNotBlank()) {
+                                                voiceInputText = text
+                                                // 自动立即触发 AI 拆解
+                                                isDecomposing = true
+                                                val parsed = repository.decomposeInputToTasks(text)
+                                                candidateTasks = parsed
+                                                Toast.makeText(context, "转写成功并已拆解！", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "未识别到有效语音，请重试", Toast.LENGTH_SHORT).show()
+                                            }
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "语音识别异常: ${e.message}", Toast.LENGTH_LONG).show()
+                                        } finally {
+                                            isTranscribing = false
+                                            isDecomposing = false
+                                        }
+                                    }
+                                } else {
+                                    Toast.makeText(context, "录音时间过短或为空", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = RetroGreenPrimary,
+                                contentColor = RetroDarkBg
+                            ),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text("完成", fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                repository.voiceRecorder.cancelRecording()
+                                isRecording = false
+                            },
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.height(32.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, RetroCardBorder)
+                        ) {
+                            Text("取消", color = RetroMuted, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                        }
+                    }
+                } else if (isTranscribing) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF0F2027))
+                            .border(1.dp, Color(0xFF4FC3F7), RoundedCornerShape(6.dp))
+                            .padding(10.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            color = Color(0xFF4FC3F7),
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "SenseVoice AI 极速高精度语音转写中...",
+                            color = Color(0xFF4FC3F7),
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp
                         )
-                    )
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    IconButton(
-                        onClick = { startVoiceRecognition() },
-                        modifier = Modifier
-                            .size(50.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(RetroGreenPrimary)
+                    }
+                } else {
+                    // 常规输入栏与麦克风按钮
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Mic,
-                            contentDescription = "语音输入",
-                            tint = RetroDarkBg,
-                            modifier = Modifier.size(26.dp)
+                        OutlinedTextField(
+                            value = voiceInputText,
+                            onValueChange = { voiceInputText = it },
+                            placeholder = {
+                                Text(
+                                    "点击右侧麦克风录音，或在此直接打字 (如：上午写代码2小时，下午跑步5公里，晚上看书记账)",
+                                    color = RetroCardBorderLight,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.sp,
+                                    lineHeight = 14.sp
+                                )
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(62.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = RetroGreenText,
+                                unfocusedTextColor = RetroGreenText,
+                                focusedBorderColor = RetroGreenPrimary,
+                                unfocusedBorderColor = RetroCardBorder,
+                                focusedContainerColor = RetroDarkBg,
+                                unfocusedContainerColor = RetroDarkBg
+                            ),
+                            shape = RoundedCornerShape(4.dp),
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp
+                            )
                         )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        IconButton(
+                            onClick = { handleMicClick() },
+                            modifier = Modifier
+                                .size(50.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(RetroGreenPrimary)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Mic,
+                                contentDescription = "开始语音录入",
+                                tint = RetroDarkBg,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
                     }
                 }
 
@@ -272,7 +393,7 @@ fun JournalScreen(repository: LifeOnlineRepository) {
                             }
                         }
                     },
-                    enabled = !isDecomposing && voiceInputText.isNotBlank(),
+                    enabled = !isDecomposing && !isRecording && !isTranscribing && voiceInputText.isNotBlank(),
                     modifier = Modifier.fillMaxWidth().height(38.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = RetroDarkBg,

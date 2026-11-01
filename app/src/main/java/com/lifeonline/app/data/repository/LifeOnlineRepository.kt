@@ -1,7 +1,9 @@
 package com.lifeonline.app.data.repository
 
 import android.content.Context
+import com.lifeonline.app.data.audio.VoiceRecorder
 import com.lifeonline.app.data.local.AppDatabase
+import java.io.File
 import com.lifeonline.app.data.model.BuffItem
 import com.lifeonline.app.data.model.CharacterGenesisResult
 import com.lifeonline.app.data.model.DailyLog
@@ -26,6 +28,11 @@ class LifeOnlineRepository(
     val aiClient = AiClient(context)
     val daemonClient = DaemonClient(context)
     val sensorManager = SensorDataManager(context)
+    val voiceRecorder = VoiceRecorder(context)
+
+    suspend fun transcribeAudio(file: File): String {
+        return aiClient.transcribeAudio(file)
+    }
 
     val userStatsFlow: Flow<UserStats?> = database.userStatsDao().getUserStatsFlow()
     val dailyLogsFlow: Flow<List<DailyLog>> = database.dailyLogDao().getAllLogsFlow()

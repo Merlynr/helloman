@@ -12,9 +12,12 @@ import com.lifeonline.app.data.scale.HowToLiveBetterScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 class AiClient(private val context: Context) {
@@ -82,6 +85,46 @@ class AiClient(private val context: Context) {
             }
         } catch (e: Exception) {
             Pair(false, "连接异常: ${e.message ?: e.toString()}")
+        }
+    }
+
+    suspend fun transcribeAudio(audioFile: File): String = withContext(Dispatchers.IO) {
+        if (apiKey.isBlank()) {
+            throw RuntimeException("未检测到 API Key，请先在【配置】页面填入硅基流动等 API Key")
+        }
+
+        val url = if (baseUrl.contains("siliconflow")) {
+            "https://api.siliconflow.cn/v1/audio/transcriptions"
+        } else {
+            val base = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
+            "${base}audio/transcriptions"
+        }
+        val model = if (baseUrl.contains("siliconflow")) "FunAudioLLM/SenseVoiceSmall" else "whisper-1"
+
+        val requestBody = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("model", model)
+            .addFormDataPart(
+                "file",
+                audioFile.name,
+                audioFile.asRequestBody("audio/m4a".toMediaType())
+            )
+            .build()
+
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer $apiKey")
+            .post(requestBody)
+            .build()
+
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                val err = response.body?.string() ?: ""
+                throw RuntimeException("语音识别服务响应异常 (${response.code}): $err")
+            }
+            val respStr = response.body?.string() ?: ""
+            val json = gson.fromJson(respStr, JsonObject::class.java)
+            json.get("text")?.asString ?: ""
         }
     }
 
