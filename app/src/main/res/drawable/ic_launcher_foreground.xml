@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 像素风游戏手柄图标 (Retro Game Controller) -->
+    <path
+        android:fillColor="#4ADE80"
+        android:pathData="M34,44h40c5.52,0 10,4.48 10,10v10c0,5.52 -4.48,10 -10,10h-40c-5.52,0 -10,-4.48 -10,-10v-10c0,-5.52 4.48,-10 10,-10z"/>
+    <!-- 方向键十字 -->
+    <path
+        android:fillColor="#121612"
+        android:pathData="M38,50h6v18h-6z"/>
+    <path
+        android:fillColor="#121612"
+        android:pathData="M32,56h18v6h-18z"/>
+    <!-- 动作按键 -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M66,56m-3.5,0a3.5,3.5 0,1 1,7 0a3.5,3.5 0,1 1,-7 0"/>
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M74,62m-3.5,0a3.5,3.5 0,1 1,7 0a3.5,3.5 0,1 1,-7 0"/>
+</vector>
