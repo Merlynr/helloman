@@ -1,34 +1,33 @@
-# Android APK 编译与部署脚本
+# Android APK Build and Deploy Script
 $env:ANDROID_HOME = "D:\Scoop\apps\android-clt\current"
-$sdkManager = "$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat"
 
 Write-Host "==============================================" -ForegroundColor Green
-Write-Host "/// 人生 Online - APK 构建部署 ///" -ForegroundColor Green
+Write-Host "/// Life Online - APK Build and Install ///" -ForegroundColor Green
 Write-Host "• ANDROID_HOME: $env:ANDROID_HOME" -ForegroundColor Gray
 Write-Host "==============================================" -ForegroundColor Green
 
-# 1. 编译 APK
-Write-Host "开始执行 Gradle 构建 assembleDebug..." -ForegroundColor Cyan
+# 1. Compile APK
+Write-Host "Running Gradle assembleDebug..." -ForegroundColor Cyan
 gradle assembleDebug
 
 $apkPath = "app\build\outputs\apk\debug\app-debug.apk"
 if (Test-Path $apkPath) {
     Write-Host "==============================================" -ForegroundColor Green
-    Write-Host "[√] APK 编译成功！" -ForegroundColor Green
-    Write-Host "APK 路径: $apkPath" -ForegroundColor Cyan
+    Write-Host "[OK] APK build successful!" -ForegroundColor Green
+    Write-Host "APK Path: $apkPath" -ForegroundColor Cyan
     Write-Host "==============================================" -ForegroundColor Green
 
-    # 2. 检查是否有设备连接，若有则自动安装
+    # 2. Check connected devices and install
     $devices = adb devices | Select-String "device$"
     if ($devices.Count -gt 0) {
-        Write-Host "检测到已连接手机，正在自动安装 APK 到手机..." -ForegroundColor Yellow
+        Write-Host "Connected device found, installing APK..." -ForegroundColor Yellow
         adb push $apkPath /data/local/tmp/app.apk
         adb shell pm install -r -d -t /data/local/tmp/app.apk
-        Write-Host "[√] 手机安装完成！正在启动应用..." -ForegroundColor Green
+        Write-Host "[OK] Installation complete! Launching app..." -ForegroundColor Green
         adb shell am start -n com.lifeonline.app/.MainActivity
     } else {
-        Write-Host "提示：当前无 USB 调试设备连接。" -ForegroundColor Gray
+        Write-Host "Notice: No connected USB device found." -ForegroundColor Gray
     }
 } else {
-    Write-Host "[X] 未找到编译输出的 APK，请查看上方 Gradle 日志。" -ForegroundColor Red
+    Write-Host "[ERROR] Output APK not found." -ForegroundColor Red
 }
