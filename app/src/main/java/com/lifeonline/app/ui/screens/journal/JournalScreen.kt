@@ -64,6 +64,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -452,9 +453,20 @@ private fun TopArchiveCard(
                 Spacer(modifier = Modifier.width(10.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    val age = activeChapter?.currentAge ?: 25
+                    val days = activeChapter?.daysPassed ?: 319
+                    val level = userStats?.level ?: 2
+                    val exp = userStats?.exp ?: 25
+                    val maxExp = userStats?.maxExp ?: 100
+                    val remainExp = (maxExp - exp).coerceAtLeast(0)
+
+                    // 第一行：ID + 等级徽章并排紧凑展示
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Text(
-                            text = "ID: ${userStats?.name ?: "小mo"}",
+                            text = "ID: ${userStats?.name ?: "玩家"}",
                             color = textColor,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
@@ -466,30 +478,47 @@ private fun TopArchiveCard(
                             color = accentRed,
                             fontSize = 11.sp
                         )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(if (isCartridge) CartridgeGreen else RetroDarkBg)
+                                .border(1.dp, if (isCartridge) CartridgeBorder else RetroCardBorder, RoundedCornerShape(3.dp))
+                                .padding(horizontal = 6.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = "Lv.$level",
+                                color = if (isCartridge) CartridgeCard else RetroGreenPrimary,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 10.sp
+                            )
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
 
-                    val age = activeChapter?.currentAge ?: 25
-                    val days = activeChapter?.daysPassed ?: 319
-                    val level = userStats?.level ?: 2
-                    val exp = userStats?.exp ?: 25
-                    val maxExp = userStats?.maxExp ?: 100
-                    val remainExp = (maxExp - exp).coerceAtLeast(0)
-
+                    // 第二行：紧凑进度，永不折行
                     Text(
-                        text = "Lv.$level · 距下一级 ${remainExp}EXP · ${age}岁 · 第${days}天",
+                        text = "距下级 ${remainExp}EXP · ${age}岁 · 第${days}天",
                         color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
 
+                    Spacer(modifier = Modifier.height(1.dp))
+
+                    // 第三行：称号，单行防护
                     Text(
                         text = userStats?.title ?: "体制攻坚 × 职业护城河黄金期",
                         color = accentRed,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 10.sp
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

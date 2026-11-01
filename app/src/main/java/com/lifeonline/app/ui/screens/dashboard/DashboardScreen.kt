@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lifeonline.app.data.model.UserStats
@@ -76,45 +77,30 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
             .padding(horizontal = 14.dp, vertical = 10.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        // 1. 顶部角色基础状态栏 (Player Status Card)
+        // 1. 顶部角色基础状态栏 (Player Status Card - 紧凑无换行布局)
         RetroContainer(title = "STATUS 角色属性面板", subtitle = "ONLINE") {
+            // 第一行：玩家名称 + 紧随其后的等级胶囊 + 右侧在线指示器
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stats.name,
-                        color = textColor,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp
-                    )
-                    Text(
-                        text = "称号: ${stats.title}",
-                        color = subtitleColor,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    if (stats.aiTitle.isNotBlank()) {
-                        Text(
-                            text = "✦ ${stats.aiTitle}",
-                            color = if (isCartridge) CartridgeGreen else RetroAmber,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
+                Text(
+                    text = stats.name,
+                    color = textColor,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
 
-                // 等级徽章 (卡带墨绿 vs 黑客暗黑)
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // 等级徽章 (紧凑胶囊，不占用大块右侧宽度)
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(RoundedCornerShape(3.dp))
                         .background(if (isCartridge) CartridgeGreen else RetroDarkBg)
-                        .border(1.2.dp, if (isCartridge) CartridgeBorder else RetroCardBorder, RoundedCornerShape(4.dp))
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                        .border(1.dp, if (isCartridge) CartridgeBorder else RetroCardBorder, RoundedCornerShape(3.dp))
+                        .padding(horizontal = 7.dp, vertical = 2.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -122,9 +108,47 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
                         color = if (isCartridge) CartridgeCard else RetroGreenPrimary,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Black,
-                        fontSize = 16.sp
+                        fontSize = 12.sp
                     )
                 }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                Text(
+                    text = "● 在线",
+                    color = if (isCartridge) CartridgeGreen else RetroGreenPrimary,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // 第二行：称号全宽排版，整洁平整，绝不单字孤悬换行
+            Text(
+                text = "称号: ${stats.title}",
+                color = subtitleColor,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            if (stats.aiTitle.isNotBlank() && stats.aiTitle != stats.title) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "✦ 动态: ${stats.aiTitle}",
+                    color = if (isCartridge) CartridgeGreen else RetroAmber,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             Spacer(modifier = Modifier.height(10.dp))
