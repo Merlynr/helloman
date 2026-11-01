@@ -1,0 +1,234 @@
+package com.lifeonline.app.data.scale
+
+import com.lifeonline.app.data.model.AttributeDeltas
+import com.lifeonline.app.data.model.CharacterGenesisResult
+import com.lifeonline.app.data.model.ScaleEvaluation
+import com.lifeonline.app.data.model.SettlementResult
+import com.lifeonline.app.data.model.TraitItem
+import com.lifeonline.app.data.model.UserStats
+
+/**
+ * 依据 GitHub 开源项目《高性价比人生指南》(eternity4719/HowToLiveBetter)
+ * 构建的多周期（近期/阶段性/长期）科学经验与成长评价标尺
+ */
+object HowToLiveBetterScale {
+
+    val SYSTEM_BENCHMARK_PROMPT = """
+你是一款硬核现实 RPG 游戏《人生 Online》的裁决导师。
+你的经验结算与评价严格遵循开源项目《高性价比人生指南》(HowToLiveBetter) 的循证与高性价比哲学：
+1. 【循证与证据等级】：拒绝鸡汤与虚妄玄学，只认可具备真实复利的行为。
+2. 【成本与收益比】：衡量用户行为所消耗的时间、金钱和意志力成本，与其带来的短期即时收益与长期复利。
+3. 【底线防御大于盲目进攻】：保护睡眠、防病防猝死、防金融债务陷阱、防法律风险的权重，远高于短期的盲目亢奋。
+4. 【多周期三层标尺】：
+   - 近期 (Daily 即时反馈)：关注睡眠时长与作息、低成本运动、健康饮食、心流工作、防久坐与防蓝光；
+   - 阶段性 (Weekly/Monthly 习惯成型)：关注打卡连续性、月度储蓄率与现金流结余、系统性知识输出、体能进阶；
+   - 长期 (Yearly 人生蓝图)：关注健康安全底线(年度体检/疫苗)、社会保障合规(医保社保防致贫)、核心职业技能护城河。
+
+五维属性说明：
+- TEC (智力/脑力): 专业技能、深度思考、认知提升、知识吸收
+- VIT (气血/体魄): 睡眠质量、有氧与抗阻运动、心肺机能、饮食健康
+- SAN (心力/精神): 情绪稳定、专注力、意志力韧性、自省与冥想
+- GOLD (财力/资产): 储蓄、记账、避免非必要消费、长期投资
+- REL (人脉/社交): 沟通协作、亲密关系维系、家庭支持、高质量社交圈
+
+请以幽默但极富洞察力的 RPG 旁白语气给出结算与战报。输出必须严格为 JSON 格式。
+""".trimIndent()
+
+    /**
+     * 构建角色初始化（转生经历生成）Prompt
+     */
+    fun buildCharacterGenesisPrompt(userInput: String): String {
+        return """
+用户录入了其现实生活中的真实经历、教育成就与生活习惯：
+【用户背景】
+$userInput
+
+请根据《高性价比人生指南》的现实标尺，为该用户初始化其《人生 Online》角色面板。
+计算初始等级 (建议 1 - 5 级)、五维初始属性点 (每项基准值 10~50 之间，总点数与其实际积累成正比)、专属头衔、初始评价与 2~3 个天生特质 (Trait)。
+
+请严格输出以下 JSON 结构，不要包含任何多余文字：
+{
+  "title": "例如：初窥门径的工程师 / 稳健求索的学者",
+  "level": 2,
+  "tec": 35,
+  "vit": 25,
+  "san": 30,
+  "gold": 20,
+  "rel": 20,
+  "commentary": "对用户过往经历的硬核点评，指出其优势维度与当前亟需防守的短板",
+  "initialTraits": [
+    {"name": "夜间灵感", "description": "深夜思考经验+10%，但气血消耗增加", "isDebuff": false},
+    {"name": "亚健康预警", "description": "久坐运动不足，体能恢复速度-10%", "isDebuff": true}
+  ]
+}
+""".trimIndent()
+    }
+
+    /**
+     * 构建每日流水与任务结算 Prompt
+     */
+    fun buildSettlementPrompt(
+        currentStats: UserStats,
+        todayInput: String,
+        stepCount: Int,
+        completedTasks: List<String>
+    ): String {
+        return """
+当前角色状态：
+- 角色称号：${currentStats.title} (Lv.${currentStats.level})
+- 五维属性：TEC=${currentStats.tec}, VIT=${currentStats.vit}, SAN=${currentStats.san}, GOLD=${currentStats.gold}, REL=${currentStats.rel}
+
+今日安卓端自动采集与完成情况：
+- 传感器步数：$stepCount 步
+- 已完成预定任务：${if (completedTasks.isEmpty()) "无" else completedTasks.joinToString("、")}
+
+用户提交的今日极简流水记录：
+【流水内容】
+$todayInput
+
+请根据《高性价比人生指南》三层标尺裁决：
+1. 计算经验掉落 (expGained, 通常在 15 - 80 之间，若有严重摆烂或熬夜可极低甚至扣减惩罚)；
+2. 计算五维增减 (attributeDeltas: tec, vit, san, gold, rel，整数，可正可负)；
+3. 判定是否附带 BUFF 或 DEBUFF (各提供 0~2 个)；
+4. 给出简短幽默且富含人生哲理的战报旁白 (dialogue)；
+5. 分别从 近期、阶段性、长期 三个层次给出基于指南的精辟建议 (scaleEvaluation)。
+
+请严格输出以下 JSON 结构，不要包含多余文本：
+{
+  "dialogue": "今日战报短评...",
+  "expGained": 40,
+  "attributeDeltas": {
+    "tec": 10,
+    "vit": 15,
+    "san": 5,
+    "gold": -20,
+    "rel": 0
+  },
+  "buffsApplied": ["体能充沛 (明日气血增长加速)"],
+  "debuffsApplied": [],
+  "scaleEvaluation": {
+    "shortTerm": "近期微习惯点评...",
+    "midTerm": "阶段性习惯与现金流点评...",
+    "longTerm": "长期复利与防御底线点评..."
+  }
+}
+""".trimIndent()
+    }
+
+    /**
+     * 离线兜底计算引擎（当无网络或未填写 API Key 时自动运行，保证 App 100% 随时可用）
+     */
+    fun calculateLocalFallbackSettlement(
+        todayInput: String,
+        stepCount: Int,
+        completedTasks: List<String>
+    ): SettlementResult {
+        var tecDelta = 0
+        var vitDelta = 0
+        var sanDelta = 0
+        var goldDelta = 0
+        var relDelta = 0
+        var exp = 20
+
+        // 步数分析
+        if (stepCount >= 10000) {
+            vitDelta += 15
+            exp += 25
+        } else if (stepCount >= 6000) {
+            vitDelta += 10
+            exp += 15
+        } else if (stepCount > 0) {
+            vitDelta += 5
+            exp += 5
+        }
+
+        // 任务完成奖励
+        exp += completedTasks.size * 15
+
+        val lower = todayInput.lowercase()
+
+        // 智力相关
+        if (lower.contains("代码") || lower.contains("学习") || lower.contains("读书") || lower.contains("写") || lower.contains("研究") || lower.contains("work")) {
+            tecDelta += 12
+            exp += 15
+        }
+
+        // 运动健康相关
+        if (lower.contains("跑") || lower.contains("健身") || lower.contains("游泳") || lower.contains("骑") || lower.contains("锻炼")) {
+            vitDelta += 15
+            sanDelta += 5
+            exp += 20
+        }
+
+        // 睡眠与休息
+        if (lower.contains("早睡") || lower.contains("午休") || lower.contains("睡够") || lower.contains("冥想")) {
+            vitDelta += 8
+            sanDelta += 8
+            exp += 10
+        }
+
+        // 熬夜负反馈
+        if (lower.contains("熬夜") || lower.contains("失眠") || lower.contains("通宵")) {
+            vitDelta -= 10
+            sanDelta -= 8
+        }
+
+        // 消费与财务相关
+        val moneyMatch = Regex("""(?:花了|支出|消费|买|饭|外卖).*?(\d+)""").find(todayInput)
+        if (moneyMatch != null) {
+            val amount = moneyMatch.groupValues[1].toIntOrNull() ?: 20
+            goldDelta -= amount.coerceAtMost(100)
+        }
+        if (lower.contains("记账") || lower.contains("存") || lower.contains("理财")) {
+            goldDelta += 10
+            exp += 10
+        }
+
+        // 社交相关
+        if (lower.contains("聚") || lower.contains("朋友") || lower.contains("家人") || lower.contains("聊天") || lower.contains("合作")) {
+            relDelta += 10
+            sanDelta += 5
+            exp += 10
+        }
+
+        val buffs = mutableListOf<String>()
+        val debuffs = mutableListOf<String>()
+
+        if (vitDelta > 15) buffs.add("气血蓬勃: 恢复速度提升")
+        if (sanDelta > 10) buffs.add("心如止水: 专注力加成")
+        if (lower.contains("熬夜")) debuffs.add("睡眠欠债: 精神易疲倦")
+
+        return SettlementResult(
+            dialogue = "【离线高性价比结算】检测到今日有效行动！步数与打卡带来扎实成长，持续把日常过成有经验掉落的副本吧！",
+            expGained = exp.coerceAtLeast(10),
+            attributeDeltas = AttributeDeltas(tecDelta, vitDelta, sanDelta, goldDelta, relDelta),
+            buffsApplied = buffs,
+            debuffsApplied = debuffs,
+            scaleEvaluation = ScaleEvaluation(
+                shortTerm = "日常微习惯稳步推进，传感器步数与输入事件已折算经验。",
+                midTerm = "保持规律行动，避免高意志力消耗的剧烈波动，遵循复利效应。",
+                longTerm = "根据《高性价比人生指南》，持续筑牢健康与储蓄安全底线，是人生最高收益的防御投资。"
+            )
+        )
+    }
+
+    /**
+     * 离线角色初始生成
+     */
+    fun createDefaultGenesis(userInput: String): CharacterGenesisResult {
+        return CharacterGenesisResult(
+            title = "启程探索者",
+            level = 1,
+            tec = 25,
+            vit = 25,
+            san = 25,
+            gold = 20,
+            rel = 20,
+            commentary = "根据你的过往背景，初始五维已均衡建立。前路漫漫，真实人生的每一份认真记录都会在此处化作可感知的力量。",
+            initialTraits = listOf(
+                TraitItem("觉醒新手", "初入人生Online，经验获取效率+5%", isDebuff = false),
+                TraitItem("习惯探索中", "每日任务打卡将强化意志韧性", isDebuff = false)
+            )
+        )
+    }
+}
