@@ -13,8 +13,8 @@ android {
         applicationId = "com.lifeonline.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "1.3.9"
+        versionCode = 10
+        versionName = "1.3.10"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

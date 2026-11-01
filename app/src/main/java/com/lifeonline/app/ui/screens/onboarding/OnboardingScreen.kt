@@ -48,6 +48,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import com.lifeonline.app.data.scale.BuiltinAiPrompts
 import com.lifeonline.app.data.model.CharacterGenesisResult
 import com.lifeonline.app.data.repository.LifeOnlineRepository
 import com.lifeonline.app.ui.components.AvatarDisplay
@@ -94,6 +99,8 @@ fun OnboardingScreen(
     val scope = rememberCoroutineScope()
     val isCartridge = LocalIsCartridgeTheme.current
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
 
     val primaryGreen = if (isCartridge) CartridgeGreen else RetroGreenPrimary
     val bgColor = if (isCartridge) CartridgeBg else RetroDarkBg
@@ -282,6 +289,21 @@ fun OnboardingScreen(
                         primaryColor = primaryGreen,
                         isCartridge = isCartridge
                     )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            clipboardManager.setText(AnnotatedString(BuiltinAiPrompts.CHARACTER_EXTRACTION_PROMPT))
+                            Toast.makeText(context, "已复制个人画像提取提示词！可发送给 ChatGPT/Claude 等提炼简介", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth().height(34.dp),
+                        shape = RoundedCornerShape(4.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, primaryGreen.copy(alpha = 0.6f)),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                    ) {
+                        Text("📋 复制外部 AI 角色画像提取提示词 (发给常用 AI)", fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = primaryGreen, fontWeight = FontWeight.Bold)
+                    }
 
                     Spacer(modifier = Modifier.height(14.dp))
 

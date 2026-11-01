@@ -42,6 +42,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import com.lifeonline.app.data.scale.BuiltinAiPrompts
 import com.lifeonline.app.data.model.Campaign
 import com.lifeonline.app.data.model.FullBlueprintTemplate
 import com.lifeonline.app.data.model.LifeBlueprintTemplates
@@ -71,6 +76,8 @@ fun EditCampaignDialog(
     onConfirm: (Campaign) -> Unit,
     onApplyTemplate: (FullBlueprintTemplate) -> Unit
 ) {
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     var selectedTab by remember { mutableStateOf(0) } // 0: 参数修改, 1: 模板库套用, 2: AI辅助规划
     var title by remember { mutableStateOf(campaign.title) }
     var targetDate by remember { mutableStateOf(campaign.targetDate) }
@@ -317,6 +324,22 @@ fun EditCampaignDialog(
                                 lineHeight = 15.sp
                             )
                             Spacer(modifier = Modifier.height(8.dp))
+
+                            OutlinedButton(
+                                onClick = {
+                                    clipboardManager.setText(AnnotatedString(BuiltinAiPrompts.CAMPAIGN_EXTRACTION_PROMPT))
+                                    Toast.makeText(context, "已复制战役与进度提取提示词！可发送给常用 AI 梳理真实进度", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.fillMaxWidth().height(36.dp),
+                                shape = RoundedCornerShape(4.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, primaryGreen),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                            ) {
+                                Text("📋 复制外部 AI 战役与进度提取提示词", fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = primaryGreen, fontWeight = FontWeight.Bold)
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
                             OutlinedTextField(
                                 value = aiPromptInput,
                                 onValueChange = { aiPromptInput = it },

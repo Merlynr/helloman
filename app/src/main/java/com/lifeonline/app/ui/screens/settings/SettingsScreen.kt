@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -34,7 +35,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import android.widget.Toast
+import com.lifeonline.app.data.scale.BuiltinAiPrompts
 import com.lifeonline.app.data.repository.LifeOnlineRepository
 import com.lifeonline.app.service.KeepAliveMonitorService
 import com.lifeonline.app.ui.components.RetroContainer
@@ -432,7 +437,44 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 3. 角色转生/重新初始化
+        // 3. 外部 AI 个人档案与战役提取提示词库 (PROMPT HUB)
+        RetroContainer(title = "外部 AI 提示词库", subtitle = "PROMPT HUB") {
+            Text(
+                text = "若你在 ChatGPT、Claude、DeepSeek 或 Kimi 等大模型中已有丰富的日常记录与履历沉淀，点击下方可一键复制结构化 Prompt 发送给它们，快速提炼身份画像与战役进度：",
+                color = descTextColor,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+                lineHeight = 15.sp
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 提示词 1 卡片：个人五维画像提取
+            PromptCopyCard(
+                icon = "🧙‍♂️",
+                title = "1. 个人角色画像与现实五维提取",
+                desc = "提炼年龄、职业身份、TEC/VIT/SAN/GOLD/BND五维与生活作息，适用于创角一键生成或6步测评。",
+                promptText = BuiltinAiPrompts.CHARACTER_EXTRACTION_PROMPT,
+                isCartridge = isCartridge,
+                primaryColor = primaryGreen
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 提示词 2 卡片：主线阶段战役与进度提取
+            PromptCopyCard(
+                icon = "🎯",
+                title = "2. 阶段主线战役与当前进度提取",
+                desc = "提取你当前推进的最关键战略攻坚战役（如考公、独立开发、备用金），自动推算目标总量与真实当前进度。",
+                promptText = BuiltinAiPrompts.CAMPAIGN_EXTRACTION_PROMPT,
+                isCartridge = isCartridge,
+                primaryColor = primaryGreen
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 4. 角色转生/重新初始化
         RetroContainer(title = "角色管理", subtitle = "RESET") {
             Text(
                 text = "若经历有了重大飞跃，或想重新输入履历生成全新五维属性与天生特质，可点击下方重新转生。",
@@ -536,4 +578,119 @@ private fun textFieldColors() = if (LocalIsCartridgeTheme.current) {
         focusedLabelColor = RetroGreenPrimary,
         unfocusedLabelColor = RetroCardBorder
     )
+}
+
+
+@Composable
+private fun PromptCopyCard(
+    icon: String,
+    title: String,
+    desc: String,
+    promptText: String,
+    isCartridge: Boolean,
+    primaryColor: Color
+) {
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+    var showDialog by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (isCartridge) Color(0xFFF7F4EC) else Color(0xFF14241B))
+            .border(1.dp, if (isCartridge) CartridgeBorder else primaryColor.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+            .padding(10.dp)
+    ) {
+        Column {
+            Row(
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text(text = icon, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = title,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = primaryColor,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = desc,
+                fontSize = 10.sp,
+                color = if (isCartridge) CartridgeTextMuted else Color.Gray,
+                fontFamily = FontFamily.Monospace,
+                lineHeight = 14.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                androidx.compose.material3.OutlinedButton(
+                    onClick = { showDialog = true },
+                    modifier = Modifier.weight(1f).height(34.dp),
+                    shape = RoundedCornerShape(4.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp)
+                ) {
+                    Text("查看全文", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = primaryColor)
+                }
+
+                Button(
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(promptText))
+                        Toast.makeText(context, "提示词已复制到剪贴板！可直接发送给常用 AI", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.weight(1.4f).height(34.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
+                    shape = RoundedCornerShape(4.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp)
+                ) {
+                    Text("一键复制提示词", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+
+    if (showDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = {
+                Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+            },
+            text = {
+                Box(modifier = Modifier.height(300.dp).verticalScroll(rememberScrollState())) {
+                    Text(
+                        text = promptText,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace,
+                        lineHeight = 16.sp
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(promptText))
+                        Toast.makeText(context, "提示词已复制到剪贴板！", Toast.LENGTH_SHORT).show()
+                        showDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
+                ) {
+                    Text("复制并关闭", fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.OutlinedButton(onClick = { showDialog = false }) {
+                    Text("关闭", fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                }
+            }
+        )
+    }
 }
