@@ -83,8 +83,10 @@ import com.lifeonline.app.data.model.UserStats
 import com.lifeonline.app.data.repository.LifeOnlineRepository
 import com.lifeonline.app.data.scale.LifeVelocityCalculator
 import com.lifeonline.app.data.scale.LifeVelocityResult
+import com.lifeonline.app.ui.components.AvatarDisplay
 import com.lifeonline.app.ui.components.EditCampaignDialog
 import com.lifeonline.app.ui.components.EditChapterDialog
+import com.lifeonline.app.ui.components.EditProfileDialog
 import com.lifeonline.app.ui.components.EditSideQuestDialog
 import com.lifeonline.app.ui.components.MorningSettlementDialog
 import com.lifeonline.app.ui.components.PixelSegmentedBar
@@ -148,6 +150,7 @@ fun JournalScreen(repository: LifeOnlineRepository) {
     var editingChapter by remember { mutableStateOf<LifeChapter?>(null) }
     var editingSideQuest by remember { mutableStateOf<SideQuest?>(null) }
     var isCreatingSideQuest by remember { mutableStateOf(false) }
+    var isEditingProfile by remember { mutableStateOf(false) }
 
     // 模式切换状态 (默认以日课为主)
     var currentMode by remember { mutableStateOf(JournalMode.DAILY) }
@@ -219,7 +222,7 @@ fun JournalScreen(repository: LifeOnlineRepository) {
             activeChapter = activeChapter,
             dateStr = todayDateStr,
             isCartridge = isCartridge,
-            onClick = { editingChapter = activeChapter }
+            onClick = { isEditingProfile = true }
         )
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -499,6 +502,22 @@ fun JournalScreen(repository: LifeOnlineRepository) {
             }
         )
     }
+
+    // 角色形象与身份配置弹窗
+    if (isEditingProfile && userStats != null) {
+        EditProfileDialog(
+            userStats = userStats!!,
+            isCartridge = isCartridge,
+            onDismiss = { isEditingProfile = false },
+            onConfirm = { newName, newAvatar ->
+                scope.launch {
+                    repository.updateProfile(newName, newAvatar)
+                    Toast.makeText(context, "角色形象与昵称已更新", Toast.LENGTH_SHORT).show()
+                }
+                isEditingProfile = false
+            }
+        )
+    }
 }
 
 // =========================================================================
@@ -574,7 +593,7 @@ private fun TopArchiveCard(
                         .border(1.5.dp, borderColor, RoundedCornerShape(6.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = "🐻", fontSize = 24.sp)
+                    AvatarDisplay(avatar = userStats?.avatar ?: "🐻", size = 46.dp, fontSize = 24.sp)
                 }
 
                 Spacer(modifier = Modifier.width(10.dp))

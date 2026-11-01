@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,18 +22,25 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.clickable
 import com.lifeonline.app.data.model.UserStats
 import com.lifeonline.app.data.repository.LifeOnlineRepository
+import com.lifeonline.app.ui.components.AvatarDisplay
 import com.lifeonline.app.ui.components.BuffChip
+import com.lifeonline.app.ui.components.EditProfileDialog
 import com.lifeonline.app.ui.components.RadarChart
 import com.lifeonline.app.ui.components.RetroContainer
 import com.lifeonline.app.ui.components.StatBar
@@ -64,6 +72,7 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
     val sedentaryStatus by repository.sedentaryStatusFlow.collectAsState()
     val scope = rememberCoroutineScope()
     val isCartridge = LocalIsCartridgeTheme.current
+    var isEditingProfile by remember { mutableStateOf(false) }
 
     val stats = userStats ?: UserStats()
     val latestLog = dailyLogs.firstOrNull()
@@ -79,65 +88,89 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
             .padding(horizontal = 14.dp, vertical = 10.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        // 1. 顶部角色基础状态栏 (Player Status Card - 紧凑无换行布局)
+        // 1. 顶部角色基础状态栏 (Player Status Card - 可点击更换头像与修改姓名)
         RetroContainer(title = "STATUS 角色属性面板", subtitle = "ONLINE") {
-            // 第一行：玩家名称 + 紧随其后的等级胶囊 + 右侧在线指示器
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { isEditingProfile = true }
+                    .padding(vertical = 2.dp)
             ) {
-                Text(
-                    text = stats.name,
-                    color = textColor,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp
-                )
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // 等级徽章 (紧凑胶囊，不占用大块右侧宽度)
+                // 卡头图腾头像
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(if (isCartridge) CartridgeGreen else RetroDarkBg)
-                        .border(1.dp, if (isCartridge) CartridgeBorder else RetroCardBorder, RoundedCornerShape(3.dp))
-                        .padding(horizontal = 7.dp, vertical = 2.dp),
+                        .size(46.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (isCartridge) Color(0xFFEDE9DF) else RetroDarkBg)
+                        .border(1.5.dp, if (isCartridge) CartridgeBorder else RetroCardBorder, RoundedCornerShape(6.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Lv. ${stats.level}",
-                        color = if (isCartridge) CartridgeCard else RetroGreenPrimary,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 12.sp
-                    )
+                    AvatarDisplay(avatar = stats.avatar, size = 46.dp, fontSize = 24.sp)
                 }
 
-                Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.width(10.dp))
 
-                Text(
-                    text = "● 在线",
-                    color = if (isCartridge) CartridgeGreen else RetroGreenPrimary,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    // 第一行：玩家名称 + 等级徽章 + 更换提示
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = stats.name,
+                            color = textColor,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // 等级徽章 (紧凑胶囊)
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(if (isCartridge) CartridgeGreen else RetroDarkBg)
+                                .border(1.dp, if (isCartridge) CartridgeBorder else RetroCardBorder, RoundedCornerShape(3.dp))
+                                .padding(horizontal = 7.dp, vertical = 2.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Lv. ${stats.level}",
+                                color = if (isCartridge) CartridgeCard else RetroGreenPrimary,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.weight(1f))
+
+                        Text(
+                            text = "⚙️换头像",
+                            color = if (isCartridge) CartridgeTextMuted else RetroCardBorder,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    // 第二行：称号全宽排版
+                    Text(
+                        text = "称号: ${stats.title}",
+                        color = subtitleColor,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // 第二行：称号全宽排版，整洁平整，绝不单字孤悬换行
-            Text(
-                text = "称号: ${stats.title}",
-                color = subtitleColor,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
 
             if (stats.aiTitle.isNotBlank() && stats.aiTitle != stats.title) {
                 Spacer(modifier = Modifier.height(2.dp))
@@ -300,6 +333,21 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+    }
+
+    // 角色换肤与改名弹窗
+    if (isEditingProfile) {
+        EditProfileDialog(
+            userStats = stats,
+            isCartridge = isCartridge,
+            onDismiss = { isEditingProfile = false },
+            onConfirm = { newName, newAvatar ->
+                scope.launch {
+                    repository.updateProfile(newName, newAvatar)
+                }
+                isEditingProfile = false
+            }
+        )
     }
 }
 

@@ -11,6 +11,7 @@ data class UserStats(
     @PrimaryKey val id: Int = 1,
     val name: String = "冒险者",
     val title: String = "初窥门径的探索者",
+    val avatar: String = "🐻",
     val level: Int = 1,
     val exp: Int = 0,
     val maxExp: Int = 100,

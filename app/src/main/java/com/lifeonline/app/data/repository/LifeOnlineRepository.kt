@@ -102,6 +102,17 @@ class LifeOnlineRepository(
         return database.userStatsDao().getUserStats() ?: UserStats()
     }
 
+    suspend fun updateProfile(name: String, avatar: String) {
+        val current = getUserStats()
+        val updated = current.copy(name = name, avatar = avatar)
+        database.userStatsDao().insertOrUpdate(updated)
+    }
+
+    suspend fun resetCharacterInitialization() {
+        val current = getUserStats()
+        database.userStatsDao().insertOrUpdate(current.copy(isInitialized = false))
+    }
+
     /**
      * 初始化或确保默认篇章与考公战役已就绪
      */
@@ -151,9 +162,13 @@ class LifeOnlineRepository(
     }
 
     /**
-     * 角色初始化（经历录入 -> AI 生成五维属性与天生特质）
+     * 角色初始化（多步经历录入 -> AI 生成五维属性与天生特质）
      */
-    suspend fun initializeCharacter(historyInput: String): CharacterGenesisResult {
+    suspend fun initializeCharacter(
+        historyInput: String,
+        playerName: String = "玩家",
+        avatar: String = "🐻"
+    ): CharacterGenesisResult {
         val result = if (aiClient.apiKey.isNotBlank()) {
             aiClient.generateCharacterGenesis(historyInput)
         } else {
@@ -163,7 +178,8 @@ class LifeOnlineRepository(
 
         val newStats = UserStats(
             id = 1,
-            name = "玩家",
+            name = playerName.ifBlank { "玩家" },
+            avatar = avatar.ifBlank { "🐻" },
             title = result.title,
             level = result.level.coerceAtLeast(1),
             exp = 0,
