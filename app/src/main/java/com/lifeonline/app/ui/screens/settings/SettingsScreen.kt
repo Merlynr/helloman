@@ -57,6 +57,8 @@ fun SettingsScreen(
     var baseUrl by remember { mutableStateOf(aiClient.baseUrl) }
     var modelName by remember { mutableStateOf(aiClient.modelName) }
     var saveStatus by remember { mutableStateOf("") }
+    var isTestingApi by remember { mutableStateOf(false) }
+    var apiTestResult by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -227,30 +229,76 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Button(
-                onClick = {
-                    aiClient.apiKey = apiKey.trim()
-                    aiClient.baseUrl = baseUrl.trim()
-                    aiClient.modelName = modelName.trim()
-                    saveStatus = "配置已持久化保存！"
-                },
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = RetroGreenPrimary,
-                    contentColor = RetroDarkBg
-                ),
-                shape = RoundedCornerShape(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("[ 保存模型配置 (SAVE) ]", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Button(
+                    onClick = {
+                        aiClient.apiKey = apiKey.trim()
+                        aiClient.baseUrl = baseUrl.trim()
+                        aiClient.modelName = modelName.trim()
+                        saveStatus = "配置已持久化保存！"
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = RetroGreenPrimary,
+                        contentColor = RetroDarkBg
+                    ),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text("[ 保存 (SAVE) ]", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+
+                Button(
+                    onClick = {
+                        scope.launch {
+                            isTestingApi = true
+                            apiTestResult = "正在向大模型发送握手测试..."
+                            try {
+                                val (ok, msg) = aiClient.testApiConnection(apiKey.trim(), baseUrl.trim(), modelName.trim())
+                                apiTestResult = if (ok) "● $msg" else "○ $msg"
+                            } finally {
+                                isTestingApi = false
+                            }
+                        }
+                    },
+                    enabled = !isTestingApi,
+                    modifier = Modifier.weight(1.3f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = RetroDarkBg,
+                        contentColor = RetroAmber
+                    ),
+                    shape = RoundedCornerShape(4.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, RetroAmber)
+                ) {
+                    Text(
+                        if (isTestingApi) "测试中..." else "[ 测试 API 连通性 ]",
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
             }
 
             if (saveStatus.isNotBlank()) {
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = saveStatus,
                     color = RetroGreenPrimary,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 11.sp
+                )
+            }
+
+            if (apiTestResult.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = apiTestResult,
+                    color = if (apiTestResult.startsWith("●")) RetroGreenPrimary else RetroRed,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp
                 )
             }
         }

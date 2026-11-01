@@ -37,6 +37,52 @@ class AiClient(private val context: Context) {
         get() = prefs.getString("model_name", "deepseek-chat") ?: "deepseek-chat"
         set(value) = prefs.edit().putString("model_name", value).apply()
 
+    suspend fun testApiConnection(
+        testKey: String = apiKey,
+        testUrl: String = baseUrl,
+        testModel: String = modelName
+    ): Pair<Boolean, String> = withContext(Dispatchers.IO) {
+        if (testKey.isBlank()) {
+            return@withContext Pair(false, "API Key 不能为空，请先在上方填入 Key")
+        }
+        val startTime = System.currentTimeMillis()
+        try {
+            val url = if (testUrl.endsWith("/")) "${testUrl}chat/completions" else "$testUrl/chat/completions"
+            val bodyMap = mapOf(
+                "model" to testModel,
+                "messages" to listOf(
+                    mapOf("role" to "user", "content" to "请回复单个词：PONG")
+                ),
+                "max_tokens" to 20
+            )
+            val requestBody = gson.toJson(bodyMap).toRequestBody("application/json".toMediaType())
+            val request = Request.Builder()
+                .url(url)
+                .addHeader("Authorization", "Bearer $testKey")
+                .addHeader("Content-Type", "application/json")
+                .post(requestBody)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val errBody = response.body?.string()?.take(150) ?: ""
+                    return@withContext Pair(false, "HTTP ${response.code} 错误: $errBody")
+                }
+                val respStr = response.body?.string() ?: ""
+                val jsonObject = gson.fromJson(respStr, JsonObject::class.java)
+                val choices = jsonObject.getAsJsonArray("choices")
+                if (choices != null && choices.size() > 0) {
+                    val content = choices[0].asJsonObject.getAsJsonObject("message").get("content").asString
+                    val elapsed = System.currentTimeMillis() - startTime
+                    return@withContext Pair(true, "验证成功！耗时: ${elapsed}ms | 模型响应: ${content.trim()}")
+                }
+                Pair(false, "未解析到模型回复内容")
+            }
+        } catch (e: Exception) {
+            Pair(false, "连接异常: ${e.message ?: e.toString()}")
+        }
+    }
+
     suspend fun generateCharacterGenesis(userInput: String): CharacterGenesisResult = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
             return@withContext HowToLiveBetterScale.createDefaultGenesis(userInput)
