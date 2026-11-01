@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.lifeonline.app.data.model.Campaign
+import com.lifeonline.app.data.model.SideQuest
 import com.lifeonline.app.data.model.DecomposedTask
 import com.lifeonline.app.data.model.LifeChapter
 import com.lifeonline.app.data.model.SettlementResult
@@ -76,6 +77,9 @@ import com.lifeonline.app.data.model.TaskItem
 import com.lifeonline.app.data.model.TaskType
 import com.lifeonline.app.data.model.UserStats
 import com.lifeonline.app.data.repository.LifeOnlineRepository
+import com.lifeonline.app.ui.components.EditCampaignDialog
+import com.lifeonline.app.ui.components.EditChapterDialog
+import com.lifeonline.app.ui.components.EditSideQuestDialog
 import com.lifeonline.app.ui.components.PixelSegmentedBar
 import com.lifeonline.app.ui.components.RetroContainer
 import com.lifeonline.app.ui.components.SettlementDialog
@@ -126,6 +130,13 @@ fun JournalScreen(repository: LifeOnlineRepository) {
     val userStats by repository.userStatsFlow.collectAsState(initial = null)
     val activeCampaign by repository.activeCampaignFlow.collectAsState(initial = null)
     val activeChapter by repository.activeChapterFlow.collectAsState(initial = null)
+    val sideQuests by repository.sideQuestsFlow.collectAsState(initial = emptyList())
+
+    // 弹窗状态 (点哪改哪)
+    var editingCampaign by remember { mutableStateOf<Campaign?>(null) }
+    var editingChapter by remember { mutableStateOf<LifeChapter?>(null) }
+    var editingSideQuest by remember { mutableStateOf<SideQuest?>(null) }
+    var isCreatingSideQuest by remember { mutableStateOf(false) }
 
     // 模式切换状态 (默认以日课为主)
     var currentMode by remember { mutableStateOf(JournalMode.DAILY) }
@@ -191,12 +202,13 @@ fun JournalScreen(repository: LifeOnlineRepository) {
             .padding(horizontal = 14.dp, vertical = 10.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        // ================= 顶部玩家存档头图 (Retro Save Card) =================
+        // ================= 顶部玩家存档头图 (Retro Save Card - 点击可编辑篇章) =================
         TopArchiveCard(
             userStats = userStats,
             activeChapter = activeChapter,
             dateStr = todayDateStr,
-            isCartridge = isCartridge
+            isCartridge = isCartridge,
+            onClick = { editingChapter = activeChapter }
         )
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -332,6 +344,16 @@ fun JournalScreen(repository: LifeOnlineRepository) {
                         }
                     },
                     onNavigateToCampaign = { currentMode = JournalMode.CAMPAIGN },
+                    sideQuests = sideQuests,
+                    onEditCampaign = { editingCampaign = activeCampaign },
+                    onEditSideQuest = { editingSideQuest = it },
+                    onBoostSideQuest = { id ->
+                        scope.launch {
+                            repository.boostSideQuest(id, 1)
+                            Toast.makeText(context, "支线微目标已推进 +1 节点！获得 EXP", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    onCreateSideQuest = { isCreatingSideQuest = true },
                     isCartridge = isCartridge
                 )
             }
@@ -348,6 +370,7 @@ fun JournalScreen(repository: LifeOnlineRepository) {
                             }
                         }
                     },
+                    onEditCampaign = { editingCampaign = activeCampaign },
                     onNavigateToChapter = { currentMode = JournalMode.CHAPTER },
                     onNavigateToDaily = { currentMode = JournalMode.DAILY },
                     isCartridge = isCartridge
@@ -358,6 +381,7 @@ fun JournalScreen(repository: LifeOnlineRepository) {
                 ChapterModeContent(
                     chapter = activeChapter,
                     activeCampaign = activeCampaign,
+                    onEditChapter = { editingChapter = activeChapter },
                     onNavigateToCampaign = { currentMode = JournalMode.CAMPAIGN },
                     isCartridge = isCartridge
                 )
@@ -365,6 +389,74 @@ fun JournalScreen(repository: LifeOnlineRepository) {
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+    }
+
+    // 战役编辑与模板套用弹窗
+    editingCampaign?.let { camp ->
+        EditCampaignDialog(
+            campaign = camp,
+            isCartridge = isCartridge,
+            onDismiss = { editingCampaign = null },
+            onConfirm = { updated ->
+                scope.launch { repository.updateCampaign(updated) }
+                editingCampaign = null
+                Toast.makeText(context, "战役配置已更新", Toast.LENGTH_SHORT).show()
+            },
+            onApplyTemplate = { template ->
+                scope.launch {
+                    repository.applyFullBlueprint(template)
+                    Toast.makeText(context, "已成功载入「${template.name}」人生蓝图！", Toast.LENGTH_SHORT).show()
+                }
+                editingCampaign = null
+            }
+        )
+    }
+
+    // 篇章编辑弹窗
+    editingChapter?.let { ch ->
+        EditChapterDialog(
+            chapter = ch,
+            isCartridge = isCartridge,
+            onDismiss = { editingChapter = null },
+            onConfirm = { updated ->
+                scope.launch { repository.updateChapter(updated) }
+                editingChapter = null
+                Toast.makeText(context, "人生篇章已更新", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    // 支线微目标新增/编辑弹窗
+    if (editingSideQuest != null || isCreatingSideQuest) {
+        EditSideQuestDialog(
+            sideQuest = editingSideQuest,
+            isCartridge = isCartridge,
+            onDismiss = {
+                editingSideQuest = null
+                isCreatingSideQuest = false
+            },
+            onConfirm = { quest ->
+                scope.launch {
+                    if (quest.id == 0L) {
+                        repository.insertSideQuest(quest)
+                        Toast.makeText(context, "新支线已创建", Toast.LENGTH_SHORT).show()
+                    } else {
+                        repository.updateSideQuest(quest)
+                        Toast.makeText(context, "支线配置已保存", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                editingSideQuest = null
+                isCreatingSideQuest = false
+            },
+            onDelete = { quest ->
+                scope.launch {
+                    repository.deleteSideQuest(quest)
+                    Toast.makeText(context, "支线已移除", Toast.LENGTH_SHORT).show()
+                }
+                editingSideQuest = null
+                isCreatingSideQuest = false
+            }
+        )
     }
 
     // 战报结算弹窗
@@ -384,7 +476,8 @@ private fun TopArchiveCard(
     userStats: UserStats?,
     activeChapter: LifeChapter?,
     dateStr: String,
-    isCartridge: Boolean
+    isCartridge: Boolean,
+    onClick: () -> Unit = {}
 ) {
     val borderColor = if (isCartridge) CartridgeBorder else RetroCardBorder
     val cardBg = if (isCartridge) CartridgeCardWhite else RetroCardBg
@@ -397,6 +490,7 @@ private fun TopArchiveCard(
             .clip(RoundedCornerShape(8.dp))
             .background(cardBg)
             .border(2.dp, borderColor, RoundedCornerShape(8.dp))
+            .clickable { onClick() }
             .padding(12.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -601,6 +695,7 @@ private fun DailyModeContent(
     tasks: List<TaskItem>,
     steps: Int,
     activeCampaign: Campaign?,
+    sideQuests: List<SideQuest>,
     journalInput: String,
     onJournalInputChange: (String) -> Unit,
     newTaskTitle: String,
@@ -623,77 +718,201 @@ private fun DailyModeContent(
     onAddSingleTask: () -> Unit,
     onExecuteSettlement: () -> Unit,
     onNavigateToCampaign: () -> Unit,
+    onEditCampaign: () -> Unit,
+    onEditSideQuest: (SideQuest) -> Unit,
+    onBoostSideQuest: (Long) -> Unit,
+    onCreateSideQuest: () -> Unit,
     isCartridge: Boolean
 ) {
     val accentRed = if (isCartridge) CartridgeAccentRed else RetroAmber
     val primaryGreen = if (isCartridge) CartridgeGreen else RetroGreenPrimary
     val textColor = if (isCartridge) CartridgeText else RetroGreenText
 
-    // 0. 当前正在推进的战役联动胶囊横幅
-    if (activeCampaign != null) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(6.dp))
-                .background(if (isCartridge) Color(0xFFF7F1E6) else Color(0xFF14241B))
-                .border(1.5.dp, if (isCartridge) CartridgeGreenLight else RetroCardBorderLight, RoundedCornerShape(6.dp))
-                .clickable { onNavigateToCampaign() }
-                .padding(horizontal = 10.dp, vertical = 8.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "🎯", fontSize = 16.sp)
-                Spacer(modifier = Modifier.width(8.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "正在推进战役",
-                            color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 10.sp
+    // 0. QUEST 战役主线剧情与支线微目标 (小MO 风格沉浸式联动卡片)
+    RetroContainer(
+        title = "QUEST 主线剧情与支线挑战",
+        subtitle = "点卡片可直接编辑修改"
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // (1) 主线战役卡片
+            if (activeCampaign != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (isCartridge) Color(0xFFFAF7F0) else Color(0xFF14241B))
+                        .border(1.2.dp, if (isCartridge) CartridgeBorder else RetroCardBorder, RoundedCornerShape(6.dp))
+                        .clickable { onEditCampaign() }
+                        .padding(10.dp)
+                ) {
+                    Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Text(text = "🎯", fontSize = 13.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "主线 · ${activeCampaign.title}",
+                                    color = primaryGreen,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Text(
+                                text = "${(activeCampaign.progressPercent * 100).toInt()}%",
+                                color = accentRed,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // 主线进度条 (复古卡带色)
+                        PixelSegmentedBar(
+                            progress = activeCampaign.progressPercent,
+                            activeColor = accentRed
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(accentRed)
-                                .padding(horizontal = 4.dp, vertical = 1.dp)
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = "主线",
-                                color = Color.White,
+                                text = "阶段: ${activeCampaign.stageName} [${activeCampaign.currentProgress}/${activeCampaign.targetTotal}${activeCampaign.unit}]",
+                                color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = "⚙️ 配置/换模板",
+                                color = primaryGreen,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = activeCampaign.title,
-                        color = primaryGreen,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        text = "进度: ${activeCampaign.currentProgress}/${activeCampaign.targetTotal}${activeCampaign.unit} · 打卡带 [🎯] 任务自动累加",
-                        color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 10.sp
-                    )
                 }
-                Spacer(modifier = Modifier.width(6.dp))
+            }
+
+            // (2) 支线任务列表
+            sideQuests.forEach { quest ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (isCartridge) Color(0xFFF6F3EC) else RetroDarkBg)
+                        .border(1.dp, if (isCartridge) CartridgeBorder.copy(alpha = 0.5f) else RetroCardBorder, RoundedCornerShape(6.dp))
+                        .clickable { onEditSideQuest(quest) }
+                        .padding(10.dp)
+                ) {
+                    Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Text(text = quest.icon, fontSize = 13.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "支线 · ${quest.title}",
+                                    color = textColor,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "${(quest.progressPercent * 100).toInt()}%",
+                                    color = primaryGreen,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(3.dp))
+                                        .background(primaryGreen)
+                                        .clickable { onBoostSideQuest(quest.id) }
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "+1 推进",
+                                        color = if (isCartridge) CartridgeCard else Color.Black,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 9.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        PixelSegmentedBar(
+                            progress = quest.progressPercent,
+                            activeColor = primaryGreen
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = "${quest.description} · [${quest.currentProgress}/${quest.targetTotal}${quest.unit}]",
+                            color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // (3) 添加支线按钮
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(if (isCartridge) Color(0xFFEFEBE2) else RetroDarkBg)
+                    .border(1.dp, if (isCartridge) CartridgeBorder.copy(alpha = 0.4f) else RetroCardBorder, RoundedCornerShape(4.dp))
+                    .clickable { onCreateSideQuest() }
+                    .padding(vertical = 7.dp),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    text = "查看战役 ▶",
-                    color = accentRed,
+                    text = "+ 新增支线挑战 (SIDE QUEST)",
+                    color = primaryGreen,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     fontSize = 11.sp
                 )
             }
         }
-        Spacer(modifier = Modifier.height(10.dp))
     }
+
+    Spacer(modifier = Modifier.height(10.dp))
 
     // 1. 安卓传感器采集卡片
     RetroContainer(title = "安卓端自动采集", subtitle = "SENSOR ACTIVE") {
@@ -1204,6 +1423,7 @@ private fun CampaignModeContent(
     campaign: Campaign?,
     chapter: LifeChapter?,
     onBoost: (Int) -> Unit,
+    onEditCampaign: () -> Unit,
     onNavigateToChapter: () -> Unit,
     onNavigateToDaily: () -> Unit,
     isCartridge: Boolean
@@ -1219,13 +1439,13 @@ private fun CampaignModeContent(
     val progressRatio = if (targetProg > 0) (currentProg.toFloat() / targetProg).coerceIn(0f, 1f) else 0f
     val percentStr = String.format(Locale.getDefault(), "%.1f", progressRatio * 100f)
 
-    // 战役主面板
+    // 战役主面板 (点哪改哪)
     RetroContainer(
         title = "阶段战役跟踪",
         subtitle = "ACTIVE CAMPAIGN"
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // 战役标题与归属篇章
+            // 战役标题与编辑按钮
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -1236,18 +1456,24 @@ private fun CampaignModeContent(
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Black,
                     fontSize = 15.sp,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onEditCampaign() }
                 )
+
+                Spacer(modifier = Modifier.width(6.dp))
 
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(3.dp))
-                        .background(accentRed)
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .background(if (isCartridge) CartridgeGreen else RetroDarkBg)
+                        .border(1.dp, if (isCartridge) CartridgeBorder else RetroCardBorder, RoundedCornerShape(3.dp))
+                        .clickable { onEditCampaign() }
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
                 ) {
                     Text(
-                        text = "倒计时 85 天",
-                        color = Color.White,
+                        text = "⚙️ 配置/模板",
+                        color = if (isCartridge) CartridgeCard else RetroGreenPrimary,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.sp
@@ -1459,6 +1685,7 @@ private fun CampaignModeContent(
 private fun ChapterModeContent(
     chapter: LifeChapter?,
     activeCampaign: Campaign?,
+    onEditChapter: () -> Unit,
     onNavigateToCampaign: () -> Unit,
     isCartridge: Boolean
 ) {
@@ -1474,16 +1701,43 @@ private fun ChapterModeContent(
     val tenYearProgress = (daysPassed.toFloat() / totalTenYearDays).coerceIn(0f, 1f)
     val tenYearPercent = String.format(Locale.getDefault(), "%.1f", tenYearProgress * 100f)
 
-    // 篇章主面板
+    // 篇章主面板 (点哪改哪)
     RetroContainer(title = "人生宏观篇章蓝图", subtitle = "LIFE CHAPTER") {
         Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = chapter?.title ?: "25 ~ 35 岁 · 立业与职业护城河黄金十年",
-                color = primaryGreen,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Black,
-                fontSize = 15.sp
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = chapter?.title ?: "25 ~ 35 岁 · 立业与职业护城河黄金十年",
+                    color = primaryGreen,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 15.sp,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onEditChapter() }
+                )
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(if (isCartridge) CartridgeGreen else RetroDarkBg)
+                        .border(1.dp, if (isCartridge) CartridgeBorder else RetroCardBorder, RoundedCornerShape(3.dp))
+                        .clickable { onEditChapter() }
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        text = "⚙️ 修改篇章",
+                        color = if (isCartridge) CartridgeCard else RetroGreenPrimary,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(6.dp))
 

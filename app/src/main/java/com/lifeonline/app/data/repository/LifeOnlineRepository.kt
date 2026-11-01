@@ -16,6 +16,9 @@ import com.lifeonline.app.data.model.UserStats
 import com.lifeonline.app.data.model.Achievement
 import com.lifeonline.app.data.model.AchievementCategory
 import com.lifeonline.app.data.model.AchievementRarity
+import com.lifeonline.app.data.model.SideQuest
+import com.lifeonline.app.data.model.FullBlueprintTemplate
+import com.lifeonline.app.data.model.LifeBlueprintTemplates
 import com.lifeonline.app.data.remote.AiClient
 import com.lifeonline.app.data.remote.DaemonClient
 import com.lifeonline.app.data.sensor.SensorDataManager
@@ -63,6 +66,7 @@ class LifeOnlineRepository(
     val activeCampaignFlow: Flow<Campaign?> = database.campaignDao().getActiveCampaignFlow()
     val chaptersFlow: Flow<List<LifeChapter>> = database.lifeChapterDao().getAllChaptersFlow()
     val activeChapterFlow: Flow<LifeChapter?> = database.lifeChapterDao().getActiveChapterFlow()
+    val sideQuestsFlow: Flow<List<SideQuest>> = database.sideQuestDao().getActiveSideQuestsFlow()
 
     suspend fun getUserStats(): UserStats {
         return database.userStatsDao().getUserStats() ?: UserStats()
@@ -107,6 +111,13 @@ class LifeOnlineRepository(
         }
 
         ensureAchievementsSeeded()
+
+        // 植入默认经典支线挑战
+        if (database.sideQuestDao().getCount() == 0) {
+            LifeBlueprintTemplates.allFullBlueprints.firstOrNull()?.sideQuests?.let {
+                database.sideQuestDao().insertSideQuests(it)
+            }
+        }
     }
 
     /**
@@ -741,5 +752,80 @@ class LifeOnlineRepository(
             }
         }
         return newlyUnlocked
+    }
+
+    /**
+     * 推进支线任务进度并奖励经验
+     */
+    suspend fun boostSideQuest(sideQuestId: Long, addAmount: Int = 1) {
+        val quest = database.sideQuestDao().getSideQuestById(sideQuestId) ?: return
+        val newProg = (quest.currentProgress + addAmount).coerceAtMost(quest.targetTotal)
+        val isCompleted = newProg >= quest.targetTotal
+        database.sideQuestDao().updateSideQuest(
+            quest.copy(
+                currentProgress = newProg,
+                isCompleted = isCompleted
+            )
+        )
+
+        // 奖励经验值
+        val currentStats = getUserStats()
+        val expGain = quest.expRewardPerStep * addAmount
+        var newExp = currentStats.exp + expGain
+        var newLevel = currentStats.level
+        var newMaxExp = currentStats.maxExp
+        while (newExp >= newMaxExp) {
+            newExp -= newMaxExp
+            newLevel += 1
+            newMaxExp = (newMaxExp * 1.25f).toInt()
+        }
+        database.userStatsDao().insertOrUpdate(
+            currentStats.copy(
+                exp = newExp,
+                level = newLevel,
+                maxExp = newMaxExp,
+                updatedAt = System.currentTimeMillis()
+            )
+        )
+    }
+
+    suspend fun insertSideQuest(sideQuest: SideQuest): Long {
+        return database.sideQuestDao().insertSideQuest(sideQuest)
+    }
+
+    suspend fun updateSideQuest(sideQuest: SideQuest) {
+        database.sideQuestDao().updateSideQuest(sideQuest)
+    }
+
+    suspend fun deleteSideQuest(sideQuest: SideQuest) {
+        database.sideQuestDao().deleteSideQuest(sideQuest)
+    }
+
+    /**
+     * 一键套用全套人生蓝图模板 (篇章 + 战役 + 推荐支线)
+     */
+    suspend fun applyFullBlueprint(template: FullBlueprintTemplate) {
+        // 更新或替换活跃篇章
+        val currentChapter = database.lifeChapterDao().getActiveChapter()
+        val chapterId = if (currentChapter != null) {
+            database.lifeChapterDao().updateChapter(template.chapter.copy(id = currentChapter.id))
+            currentChapter.id
+        } else {
+            database.lifeChapterDao().insertChapter(template.chapter)
+        }
+
+        // 更新或替换活跃战役
+        val currentCampaign = database.campaignDao().getActiveCampaign()
+        val campaignId = if (currentCampaign != null) {
+            database.campaignDao().updateCampaign(template.campaign.copy(id = currentCampaign.id, chapterId = chapterId))
+            currentCampaign.id
+        } else {
+            database.campaignDao().insertCampaign(template.campaign.copy(chapterId = chapterId))
+        }
+
+        // 插入配套支线挑战
+        template.sideQuests.forEach { sq ->
+            database.sideQuestDao().insertSideQuest(sq.copy(campaignId = campaignId))
+        }
     }
 }
