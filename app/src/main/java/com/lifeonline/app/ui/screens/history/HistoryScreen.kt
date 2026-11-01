@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.sp
 import com.lifeonline.app.data.model.DailyLog
 import com.lifeonline.app.data.repository.LifeOnlineRepository
 import com.lifeonline.app.ui.components.RetroContainer
+import com.lifeonline.app.ui.theme.CartridgeBg
+import com.lifeonline.app.ui.theme.LocalIsCartridgeTheme
 import com.lifeonline.app.ui.theme.RetroAmber
 import com.lifeonline.app.ui.theme.RetroCardBorder
 import com.lifeonline.app.ui.theme.RetroCardBorderLight
@@ -38,10 +40,12 @@ import com.lifeonline.app.ui.theme.RetroGreenText
 fun HistoryScreen(repository: LifeOnlineRepository) {
     val dailyLogs by repository.dailyLogsFlow.collectAsState(initial = emptyList())
 
+    val isCartridge = LocalIsCartridgeTheme.current
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(RetroDarkBg)
+            .background(if (isCartridge) CartridgeBg else RetroDarkBg)
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
         RetroContainer(title = "历程档案与成长复盘", subtitle = "共 ${dailyLogs.size} 条记录") {

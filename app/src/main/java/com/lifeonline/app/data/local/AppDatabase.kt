@@ -5,11 +5,15 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.lifeonline.app.data.local.dao.BuffDao
+import com.lifeonline.app.data.local.dao.CampaignDao
 import com.lifeonline.app.data.local.dao.DailyLogDao
+import com.lifeonline.app.data.local.dao.LifeChapterDao
 import com.lifeonline.app.data.local.dao.TaskDao
 import com.lifeonline.app.data.local.dao.UserStatsDao
 import com.lifeonline.app.data.model.BuffItem
+import com.lifeonline.app.data.model.Campaign
 import com.lifeonline.app.data.model.DailyLog
+import com.lifeonline.app.data.model.LifeChapter
 import com.lifeonline.app.data.model.TaskItem
 import com.lifeonline.app.data.model.UserStats
 
@@ -18,9 +22,11 @@ import com.lifeonline.app.data.model.UserStats
         UserStats::class,
         DailyLog::class,
         TaskItem::class,
-        BuffItem::class
+        BuffItem::class,
+        Campaign::class,
+        LifeChapter::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -29,6 +35,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun dailyLogDao(): DailyLogDao
     abstract fun taskDao(): TaskDao
     abstract fun buffDao(): BuffDao
+    abstract fun campaignDao(): CampaignDao
+    abstract fun lifeChapterDao(): LifeChapterDao
 
     companion object {
         @Volatile
@@ -40,7 +48,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "life_online.db"
-                ).build()
+                )
+                .fallbackToDestructiveMigration()
+                .build()
                 INSTANCE = instance
                 instance
             }

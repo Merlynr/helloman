@@ -24,6 +24,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +40,10 @@ import com.lifeonline.app.ui.screens.history.HistoryScreen
 import com.lifeonline.app.ui.screens.journal.JournalScreen
 import com.lifeonline.app.ui.screens.onboarding.OnboardingScreen
 import com.lifeonline.app.ui.screens.settings.SettingsScreen
+import com.lifeonline.app.ui.theme.CartridgeBg
+import com.lifeonline.app.ui.theme.CartridgeCard
+import com.lifeonline.app.ui.theme.CartridgeGreen
+import com.lifeonline.app.ui.theme.CartridgeTextMuted
 import com.lifeonline.app.ui.theme.LifeOnlineTheme
 import com.lifeonline.app.ui.theme.RetroAmber
 import com.lifeonline.app.ui.theme.RetroCardBg
@@ -78,15 +83,22 @@ class MainActivity : ComponentActivity() {
         val repository = LifeOnlineApp.instance.repository
 
         setContent {
-            LifeOnlineTheme {
-                MainContent(repository)
+            val isCartridge by repository.isCartridgeThemeFlow.collectAsState()
+            LaunchedEffect(Unit) {
+                repository.ensureDefaultDataSeeded()
+            }
+            LifeOnlineTheme(isCartridge = isCartridge) {
+                MainContent(repository, isCartridge)
             }
         }
     }
 }
 
 @Composable
-fun MainContent(repository: com.lifeonline.app.data.repository.LifeOnlineRepository) {
+fun MainContent(
+    repository: com.lifeonline.app.data.repository.LifeOnlineRepository,
+    isCartridge: Boolean
+) {
     val userStats by repository.userStatsFlow.collectAsState(initial = null)
     var currentTab by remember { mutableStateOf(NavTab.STATUS) }
     var forceOnboarding by remember { mutableStateOf(false) }
@@ -103,7 +115,7 @@ fun MainContent(repository: com.lifeonline.app.data.repository.LifeOnlineReposit
         Scaffold(
             bottomBar = {
                 NavigationBar(
-                    containerColor = RetroCardBg,
+                    containerColor = if (isCartridge) CartridgeCard else RetroCardBg,
                     tonalElevation = 0.dp
                 ) {
                     NavTab.values().forEach { tab ->
@@ -132,11 +144,11 @@ fun MainContent(repository: com.lifeonline.app.data.repository.LifeOnlineReposit
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = RetroDarkBg,
-                                selectedTextColor = RetroGreenPrimary,
-                                indicatorColor = RetroGreenPrimary,
-                                unselectedIconColor = RetroMuted,
-                                unselectedTextColor = RetroMuted
+                                selectedIconColor = if (isCartridge) CartridgeBg else RetroDarkBg,
+                                selectedTextColor = if (isCartridge) CartridgeGreen else RetroGreenPrimary,
+                                indicatorColor = if (isCartridge) CartridgeGreen else RetroGreenPrimary,
+                                unselectedIconColor = if (isCartridge) CartridgeTextMuted else RetroMuted,
+                                unselectedTextColor = if (isCartridge) CartridgeTextMuted else RetroMuted
                             )
                         )
                     }
@@ -147,7 +159,7 @@ fun MainContent(repository: com.lifeonline.app.data.repository.LifeOnlineReposit
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .background(RetroDarkBg)
+                    .background(if (isCartridge) CartridgeBg else RetroDarkBg)
             ) {
                 when (currentTab) {
                     NavTab.STATUS -> DashboardScreen(repository)

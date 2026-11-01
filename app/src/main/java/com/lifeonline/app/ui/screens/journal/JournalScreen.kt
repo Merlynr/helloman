@@ -29,8 +29,13 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.HistoryEdu
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -57,18 +62,34 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.lifeonline.app.data.model.Campaign
 import com.lifeonline.app.data.model.DecomposedTask
+import com.lifeonline.app.data.model.LifeChapter
 import com.lifeonline.app.data.model.SettlementResult
 import com.lifeonline.app.data.model.TaskItem
 import com.lifeonline.app.data.model.TaskType
+import com.lifeonline.app.data.model.UserStats
 import com.lifeonline.app.data.repository.LifeOnlineRepository
+import com.lifeonline.app.ui.components.PixelSegmentedBar
 import com.lifeonline.app.ui.components.RetroContainer
 import com.lifeonline.app.ui.components.SettlementDialog
+import com.lifeonline.app.ui.theme.CartridgeAccentRed
+import com.lifeonline.app.ui.theme.CartridgeBg
+import com.lifeonline.app.ui.theme.CartridgeBorder
+import com.lifeonline.app.ui.theme.CartridgeCard
+import com.lifeonline.app.ui.theme.CartridgeCardWhite
+import com.lifeonline.app.ui.theme.CartridgeGreen
+import com.lifeonline.app.ui.theme.CartridgeGreenLight
+import com.lifeonline.app.ui.theme.CartridgeText
+import com.lifeonline.app.ui.theme.CartridgeTextMuted
+import com.lifeonline.app.ui.theme.LocalIsCartridgeTheme
 import com.lifeonline.app.ui.theme.RetroAmber
+import com.lifeonline.app.ui.theme.RetroCardBg
 import com.lifeonline.app.ui.theme.RetroCardBorder
 import com.lifeonline.app.ui.theme.RetroCardBorderLight
 import com.lifeonline.app.ui.theme.RetroDarkBg
@@ -76,16 +97,41 @@ import com.lifeonline.app.ui.theme.RetroGreenPrimary
 import com.lifeonline.app.ui.theme.RetroGreenText
 import com.lifeonline.app.ui.theme.RetroMuted
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+/**
+ * 流水模块三种并列嵌套模式：
+ * 1. DAILY (日课): 每日任务打卡、传感器采集、语音AI拆解、流水账战报结算
+ * 2. CAMPAIGN (战役): 阶段性攻坚目标跟踪（如：2026 公务员考试冲刺）
+ * 3. CHAPTER (篇章): 宏观人生阶段蓝图（如：25~35 岁 · 立业与职业护城河黄金十年）
+ */
+enum class JournalMode(val title: String, val icon: String, val enTag: String) {
+    DAILY("日课", "📅", "DAILY"),
+    CAMPAIGN("战役", "🎯", "CAMPAIGN"),
+    CHAPTER("篇章", "🏛️", "CHAPTER")
+}
 
 @Composable
 fun JournalScreen(repository: LifeOnlineRepository) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val isCartridge = LocalIsCartridgeTheme.current
+
+    // 观察数据流
     val tasks by repository.tasksFlow.collectAsState(initial = emptyList())
     val steps by repository.stepsFlow.collectAsState()
-    val scope = rememberCoroutineScope()
+    val userStats by repository.userStatsFlow.collectAsState(initial = null)
+    val activeCampaign by repository.activeCampaignFlow.collectAsState(initial = null)
+    val activeChapter by repository.activeChapterFlow.collectAsState(initial = null)
 
+    // 模式切换状态 (默认以日课为主)
+    var currentMode by remember { mutableStateOf(JournalMode.DAILY) }
+
+    // 日常记账与单条任务输入
     var journalInput by remember {
-        mutableStateOf("上午心流写代码2小时，下午在公园快走4公里，午餐轻食花费28元，晚上阅读专业书半小时。")
+        mutableStateOf("上午行测专项刷题50道，公安核心法条背诵40分钟，午餐自制花费18元，傍晚快走4000步。")
     }
     var newTaskTitle by remember { mutableStateOf("") }
     var isSettling by remember { mutableStateOf(false) }
@@ -106,7 +152,7 @@ fun JournalScreen(repository: LifeOnlineRepository) {
             val started = repository.voiceRecorder.startRecording()
             if (started) {
                 isRecording = true
-                Toast.makeText(context, "正在录音，请说话...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "正在录音，请清晰说出今日安排...", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(context, "启动录音失败，请重试", Toast.LENGTH_SHORT).show()
             }
@@ -127,585 +173,201 @@ fun JournalScreen(repository: LifeOnlineRepository) {
             val started = repository.voiceRecorder.startRecording()
             if (started) {
                 isRecording = true
-                Toast.makeText(context, "正在录音，请说话...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "正在录音，请清晰说出今日安排...", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(context, "启动录音失败，请重试", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
+    val screenBg = if (isCartridge) CartridgeBg else RetroDarkBg
+    val todayDateStr = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(RetroDarkBg)
+            .background(screenBg)
             .padding(horizontal = 14.dp, vertical = 10.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        // 1. 安卓端自动采集卡片 (Auto Sensor Card)
-        RetroContainer(title = "安卓端自动采集", subtitle = "SENSOR ACTIVE") {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "今日计步传感器",
-                        color = RetroCardBorderLight,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp
-                    )
-                    Text(
-                        text = "$steps 步",
-                        color = RetroGreenPrimary,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp
-                    )
-                }
-
-                Button(
-                    onClick = { repository.sensorManager.addManualSteps(1000) },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = RetroDarkBg,
-                        contentColor = RetroGreenPrimary
-                    ),
-                    shape = RoundedCornerShape(4.dp),
-                    modifier = Modifier.height(34.dp)
-                ) {
-                    Text("+1000步测试", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
-                }
-            }
-        }
+        // ================= 顶部玩家存档头图 (Retro Save Card) =================
+        TopArchiveCard(
+            userStats = userStats,
+            activeChapter = activeChapter,
+            dateStr = todayDateStr,
+            isCartridge = isCartridge
+        )
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // 2. 每日任务与习惯打卡 (Quests & Habits)
-        RetroContainer(title = "任务清单与习惯打卡", subtitle = "${tasks.count { it.isCompleted }}/${tasks.size} 已完成") {
+        // ================= 三种并列模式切换标签栏 (MODE SELECTOR) =================
+        ModeSelectorBar(
+            currentMode = currentMode,
+            onSelectMode = { currentMode = it },
+            isCartridge = isCartridge
+        )
 
-            // 语音 / 一句话 AI 智能拆解区域
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFF0F1A13))
-                    .border(1.dp, RetroCardBorder, RoundedCornerShape(6.dp))
-                    .padding(10.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null,
-                        tint = RetroAmber,
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "/// 语音 / 一句话 AI 智能拆解任务",
-                        color = RetroAmber,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
-                    )
-                }
+        Spacer(modifier = Modifier.height(12.dp))
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // 录音状态栏
-                if (isRecording) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFF331111))
-                            .border(1.dp, Color(0xFFFF5252), RoundedCornerShape(6.dp))
-                            .padding(horizontal = 10.dp, vertical = 8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFFFF5252))
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "正在录音中... 请清晰说出你的安排",
-                            color = Color(0xFFFFCDD2),
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        // 完成录音按钮
-                        Button(
-                            onClick = {
-                                val audioFile = repository.voiceRecorder.stopRecording()
-                                isRecording = false
-                                if (audioFile != null && audioFile.exists() && audioFile.length() > 0) {
-                                    scope.launch {
-                                        isTranscribing = true
-                                        try {
-                                            val text = repository.transcribeAudio(audioFile)
-                                            if (text.isNotBlank()) {
-                                                voiceInputText = text
-                                                // 自动立即触发 AI 拆解
-                                                isDecomposing = true
-                                                val parsed = repository.decomposeInputToTasks(text)
-                                                candidateTasks = parsed
-                                                Toast.makeText(context, "转写成功并已拆解！", Toast.LENGTH_SHORT).show()
-                                            } else {
-                                                Toast.makeText(context, "未识别到有效语音，请重试", Toast.LENGTH_SHORT).show()
-                                            }
-                                        } catch (e: Exception) {
-                                            Toast.makeText(context, "语音识别异常: ${e.message}", Toast.LENGTH_LONG).show()
-                                        } finally {
-                                            isTranscribing = false
-                                            isDecomposing = false
-                                        }
-                                    }
-                                } else {
-                                    Toast.makeText(context, "录音时间过短或为空", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = RetroGreenPrimary,
-                                contentColor = RetroDarkBg
-                            ),
-                            shape = RoundedCornerShape(4.dp),
-                            modifier = Modifier.height(32.dp)
-                        ) {
-                            Text("完成", fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-
-                        Spacer(modifier = Modifier.width(6.dp))
-
-                        OutlinedButton(
-                            onClick = {
-                                repository.voiceRecorder.cancelRecording()
-                                isRecording = false
-                            },
-                            shape = RoundedCornerShape(4.dp),
-                            modifier = Modifier.height(32.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, RetroCardBorder)
-                        ) {
-                            Text("取消", color = RetroMuted, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
-                        }
-                    }
-                } else if (isTranscribing) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFF0F2027))
-                            .border(1.dp, Color(0xFF4FC3F7), RoundedCornerShape(6.dp))
-                            .padding(10.dp)
-                    ) {
-                        CircularProgressIndicator(
-                            color = Color(0xFF4FC3F7),
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "SenseVoice AI 极速高精度语音转写中...",
-                            color = Color(0xFF4FC3F7),
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp
-                        )
-                    }
-                } else {
-                    // 常规输入栏与麦克风按钮
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        OutlinedTextField(
-                            value = voiceInputText,
-                            onValueChange = { voiceInputText = it },
-                            placeholder = {
-                                Text(
-                                    "点击右侧麦克风录音，或在此直接打字 (如：上午写代码2小时，下午跑步5公里，晚上看书记账)",
-                                    color = RetroCardBorderLight,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 11.sp,
-                                    lineHeight = 14.sp
-                                )
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(62.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = RetroGreenText,
-                                unfocusedTextColor = RetroGreenText,
-                                focusedBorderColor = RetroGreenPrimary,
-                                unfocusedBorderColor = RetroCardBorder,
-                                focusedContainerColor = RetroDarkBg,
-                                unfocusedContainerColor = RetroDarkBg
-                            ),
-                            shape = RoundedCornerShape(4.dp),
-                            textStyle = androidx.compose.ui.text.TextStyle(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 11.sp
-                            )
-                        )
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        IconButton(
-                            onClick = { handleMicClick() },
-                            modifier = Modifier
-                                .size(50.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(RetroGreenPrimary)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Mic,
-                                contentDescription = "开始语音录入",
-                                tint = RetroDarkBg,
-                                modifier = Modifier.size(26.dp)
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Button(
-                    onClick = {
-                        if (voiceInputText.isNotBlank()) {
+        // ================= 模式内容分支渲染 =================
+        when (currentMode) {
+            JournalMode.DAILY -> {
+                DailyModeContent(
+                    tasks = tasks,
+                    steps = steps,
+                    activeCampaign = activeCampaign,
+                    journalInput = journalInput,
+                    onJournalInputChange = { journalInput = it },
+                    newTaskTitle = newTaskTitle,
+                    onNewTaskTitleChange = { newTaskTitle = it },
+                    voiceInputText = voiceInputText,
+                    onVoiceInputChange = { voiceInputText = it },
+                    isRecording = isRecording,
+                    isTranscribing = isTranscribing,
+                    isDecomposing = isDecomposing,
+                    isSettling = isSettling,
+                    candidateTasks = candidateTasks,
+                    onCandidateTasksChange = { candidateTasks = it },
+                    onMicClick = { handleMicClick() },
+                    onStopRecording = {
+                        val audioFile = repository.voiceRecorder.stopRecording()
+                        isRecording = false
+                        if (audioFile != null && audioFile.exists() && audioFile.length() > 0) {
                             scope.launch {
-                                isDecomposing = true
+                                isTranscribing = true
                                 try {
-                                    val parsed = repository.decomposeInputToTasks(voiceInputText)
-                                    candidateTasks = parsed
-                                    if (parsed.isEmpty()) {
-                                        Toast.makeText(context, "未识别出明确任务，请再补充一点描述", Toast.LENGTH_SHORT).show()
+                                    val text = repository.transcribeAudio(audioFile)
+                                    if (text.isNotBlank()) {
+                                        voiceInputText = text
+                                        isDecomposing = true
+                                        val parsed = repository.decomposeInputToTasks(text)
+                                        candidateTasks = parsed
+                                        Toast.makeText(context, "转写成功并已智能拆解！", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "未识别到有效语音，请重试", Toast.LENGTH_SHORT).show()
                                     }
                                 } catch (e: Exception) {
-                                    Toast.makeText(context, "拆解异常: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "语音识别异常: ${e.message}", Toast.LENGTH_LONG).show()
                                 } finally {
+                                    isTranscribing = false
                                     isDecomposing = false
                                 }
                             }
+                        } else {
+                            Toast.makeText(context, "录音时间过短或为空", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    enabled = !isDecomposing && !isRecording && !isTranscribing && voiceInputText.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth().height(38.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = RetroDarkBg,
-                        contentColor = RetroGreenPrimary
-                    ),
-                    shape = RoundedCornerShape(4.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, RetroGreenPrimary)
-                ) {
-                    if (isDecomposing) {
-                        CircularProgressIndicator(
-                            color = RetroGreenPrimary,
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("AI 语义分析与五维属性标注中...", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
-                    } else {
-                        Text("🪄 AI 智能拆解为任务清单 (PARSE)", fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-
-            // 候选任务预览卡片
-            if (candidateTasks.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFF0C2417))
-                        .border(1.dp, RetroGreenPrimary, RoundedCornerShape(6.dp))
-                        .padding(10.dp)
-                ) {
-                    Text(
-                        text = "✓ AI 识别出 ${candidateTasks.size} 个原子任务（勾选确认后加入今日清单）：",
-                        color = RetroGreenPrimary,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    candidateTasks.forEachIndexed { index, task ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(RetroDarkBg)
-                                .padding(horizontal = 6.dp, vertical = 6.dp)
-                                .clickable {
-                                    candidateTasks = candidateTasks.toMutableList().also {
-                                        it[index] = it[index].copy(isSelected = !it[index].isSelected)
-                                    }
+                    onCancelRecording = {
+                        repository.voiceRecorder.cancelRecording()
+                        isRecording = false
+                    },
+                    onTriggerDecompose = {
+                        scope.launch {
+                            isDecomposing = true
+                            try {
+                                val parsed = repository.decomposeInputToTasks(voiceInputText)
+                                candidateTasks = parsed
+                                if (parsed.isEmpty()) {
+                                    Toast.makeText(context, "未识别出明确任务，请再补充描述", Toast.LENGTH_SHORT).show()
                                 }
-                        ) {
-                            Checkbox(
-                                checked = task.isSelected,
-                                onCheckedChange = { checked ->
-                                    candidateTasks = candidateTasks.toMutableList().also {
-                                        it[index] = it[index].copy(isSelected = checked)
-                                    }
-                                },
-                                colors = CheckboxDefaults.colors(
-                                    checkedColor = RetroGreenPrimary,
-                                    uncheckedColor = RetroCardBorder,
-                                    checkmarkColor = RetroDarkBg
-                                ),
-                                modifier = Modifier.size(24.dp)
-                            )
-
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = task.title,
-                                    color = RetroGreenText,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    val attrColor = when (task.targetAttribute) {
-                                        "TEC" -> Color(0xFF4FC3F7)
-                                        "VIT" -> RetroGreenPrimary
-                                        "SAN" -> Color(0xFFBA68C8)
-                                        "GOLD" -> RetroAmber
-                                        "REL" -> Color(0xFFFF8A65)
-                                        else -> RetroGreenPrimary
-                                    }
-                                    Text(
-                                        text = "[${task.targetAttribute}]",
-                                        color = attrColor,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = if (task.taskType == TaskType.DAILY) "日常" else "支线",
-                                        color = RetroCardBorderLight,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 10.sp
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "+${task.expReward} EXP",
-                                        color = RetroAmber,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 10.sp
-                                    )
-                                }
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "拆解异常: ${e.message}", Toast.LENGTH_SHORT).show()
+                            } finally {
+                                isDecomposing = false
                             }
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedButton(
-                            onClick = { candidateTasks = emptyList() },
-                            modifier = Modifier.height(34.dp),
-                            shape = RoundedCornerShape(4.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, RetroCardBorder)
-                        ) {
-                            Text("取消", color = RetroMuted, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
-                        }
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        val selectedCount = candidateTasks.count { it.isSelected }
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    repository.addBatchTasks(candidateTasks)
-                                    candidateTasks = emptyList()
-                                    voiceInputText = ""
-                                    Toast.makeText(context, "成功添加 $selectedCount 项任务至今日清单！", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            enabled = selectedCount > 0,
-                            modifier = Modifier.height(34.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = RetroGreenPrimary,
-                                contentColor = RetroDarkBg
-                            ),
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
-                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("确认添加 ($selectedCount)", fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // 任务列表
-            tasks.forEach { task ->
-                TaskRowItem(
-                    task = task,
-                    onToggle = { scope.launch { repository.toggleTask(task) } },
-                    onDelete = { scope.launch { repository.deleteTask(task) } }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 快速手动单条添加任务输入框
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                OutlinedTextField(
-                    value = newTaskTitle,
-                    onValueChange = { newTaskTitle = it },
-                    placeholder = {
-                        Text(
-                            "手动单条添加 (如: 晚间拉伸10分钟)",
-                            color = RetroCardBorderLight,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp
-                        )
                     },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(50.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = RetroGreenText,
-                        unfocusedTextColor = RetroGreenText,
-                        focusedBorderColor = RetroGreenPrimary,
-                        unfocusedBorderColor = RetroCardBorder,
-                        focusedContainerColor = RetroDarkBg,
-                        unfocusedContainerColor = RetroDarkBg
-                    ),
-                    shape = RoundedCornerShape(4.dp),
-                    textStyle = androidx.compose.ui.text.TextStyle(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp
-                    )
-                )
-
-                Spacer(modifier = Modifier.width(6.dp))
-
-                IconButton(
-                    onClick = {
+                    onConfirmCandidateTasks = {
+                        val selectedCount = candidateTasks.count { it.isSelected }
+                        scope.launch {
+                            repository.addBatchTasks(candidateTasks)
+                            candidateTasks = emptyList()
+                            voiceInputText = ""
+                            Toast.makeText(context, "已成功添加 $selectedCount 项任务至今日清单！", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    onToggleTask = { task ->
+                        scope.launch {
+                            repository.toggleTask(task)
+                            if (task.campaignId != null) {
+                                val addNum = if (task.campaignProgressAdd > 0) task.campaignProgressAdd else 1
+                                val action = if (!task.isCompleted) "推进 +$addNum" else "撤销 -$addNum"
+                                Toast.makeText(context, "联动打卡成功！2026考公战役 $action 题", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    onDeleteTask = { task -> scope.launch { repository.deleteTask(task) } },
+                    onAddSingleTask = {
                         if (newTaskTitle.isNotBlank()) {
                             scope.launch {
-                                repository.addTask(newTaskTitle.trim(), TaskType.DAILY, "VIT", 15)
+                                val isExam = newTaskTitle.contains("题") || newTaskTitle.contains("行测") ||
+                                        newTaskTitle.contains("申论") || newTaskTitle.contains("考公")
+                                val cId = if (isExam && activeCampaign != null) activeCampaign?.id else null
+                                val cTag = if (isExam) "🎯 2026考公" else ""
+                                val cAdd = if (isExam) 50 else 0
+
+                                repository.addTask(
+                                    title = newTaskTitle.trim(),
+                                    type = TaskType.DAILY,
+                                    attribute = if (isExam) "TEC" else "VIT",
+                                    exp = 20,
+                                    campaignId = cId,
+                                    campaignTag = cTag,
+                                    progressAdd = cAdd
+                                )
                                 newTaskTitle = ""
                             }
                         }
                     },
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(RetroGreenPrimary)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "添加", tint = RetroDarkBg)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // 3. 极简流水账随手记输入框
-        RetroContainer(title = "极简流水账随手记", subtitle = "DAILY LOG") {
-            Text(
-                text = "写下一两句今日真实行动，AI 将根据《高性价比人生指南》标尺为你折算经验、属性变化与战报。",
-                color = RetroGreenText.copy(alpha = 0.7f),
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp,
-                lineHeight = 15.sp
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = journalInput,
-                onValueChange = { journalInput = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(110.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = RetroGreenText,
-                    unfocusedTextColor = RetroGreenText,
-                    focusedBorderColor = RetroGreenPrimary,
-                    unfocusedBorderColor = RetroCardBorder,
-                    focusedContainerColor = RetroDarkBg,
-                    unfocusedContainerColor = RetroDarkBg
-                ),
-                shape = RoundedCornerShape(4.dp),
-                textStyle = androidx.compose.ui.text.TextStyle(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp
-                )
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // 触发战报结算大按钮
-            Button(
-                onClick = {
-                    scope.launch {
-                        isSettling = true
-                        try {
-                            val res = repository.executeSettlement(journalInput)
-                            activeSettlement = res
-                        } finally {
-                            isSettling = false
+                    onAddSensorSteps = { repository.sensorManager.addManualSteps(1000) },
+                    onExecuteSettlement = {
+                        scope.launch {
+                            isSettling = true
+                            try {
+                                val res = repository.executeSettlement(journalInput)
+                                activeSettlement = res
+                            } finally {
+                                isSettling = false
+                            }
                         }
-                    }
-                },
-                enabled = !isSettling && journalInput.isNotBlank(),
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = RetroGreenPrimary,
-                    contentColor = RetroDarkBg
-                ),
-                shape = RoundedCornerShape(4.dp)
-            ) {
-                if (isSettling) {
-                    CircularProgressIndicator(
-                        color = RetroDarkBg,
-                        modifier = Modifier.width(18.dp).height(18.dp),
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("AI 裁决经验中...", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-                } else {
-                    Text(
-                        text = "⚡ 今日战报结算 (EXECUTE SETTLEMENT)",
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                }
+                    },
+                    onNavigateToCampaign = { currentMode = JournalMode.CAMPAIGN },
+                    isCartridge = isCartridge
+                )
+            }
+
+            JournalMode.CAMPAIGN -> {
+                CampaignModeContent(
+                    campaign = activeCampaign,
+                    chapter = activeChapter,
+                    onBoost = { amount ->
+                        activeCampaign?.let { c ->
+                            scope.launch {
+                                repository.boostCampaign(c.id, amount)
+                                Toast.makeText(context, "刷题进度已增加 +$amount 题！", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    onNavigateToChapter = { currentMode = JournalMode.CHAPTER },
+                    onNavigateToDaily = { currentMode = JournalMode.DAILY },
+                    isCartridge = isCartridge
+                )
+            }
+
+            JournalMode.CHAPTER -> {
+                ChapterModeContent(
+                    chapter = activeChapter,
+                    activeCampaign = activeCampaign,
+                    onNavigateToCampaign = { currentMode = JournalMode.CAMPAIGN },
+                    isCartridge = isCartridge
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
     }
 
-    // 结算弹窗
+    // 战报结算弹窗
     activeSettlement?.let { settlement ->
         SettlementDialog(
             result = settlement,
@@ -714,43 +376,1253 @@ fun JournalScreen(repository: LifeOnlineRepository) {
     }
 }
 
+// =========================================================================
+// 1. 顶部复古存档卡片 (Top Archive Header)
+// =========================================================================
+@Composable
+private fun TopArchiveCard(
+    userStats: UserStats?,
+    activeChapter: LifeChapter?,
+    dateStr: String,
+    isCartridge: Boolean
+) {
+    val borderColor = if (isCartridge) CartridgeBorder else RetroCardBorder
+    val cardBg = if (isCartridge) CartridgeCardWhite else RetroCardBg
+    val textColor = if (isCartridge) CartridgeText else RetroGreenText
+    val accentRed = if (isCartridge) CartridgeAccentRed else RetroAmber
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(cardBg)
+            .border(2.dp, borderColor, RoundedCornerShape(8.dp))
+            .padding(12.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // 顶栏：SAVE/存档反白徽章 + 日期 + 状态
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(if (isCartridge) CartridgeGreen else RetroGreenPrimary)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "SAVE / 存档",
+                        color = if (isCartridge) CartridgeCard else RetroDarkBg,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 10.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                Text(
+                    text = "DAILY LOG · $dateStr",
+                    color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 角色与阶段数据行
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // 头像方框
+                Box(
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (isCartridge) Color(0xFFE8E3D8) else RetroDarkBg)
+                        .border(1.5.dp, borderColor, RoundedCornerShape(6.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "🐻", fontSize = 24.sp)
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "ID: ${userStats?.name ?: "小mo"}",
+                            color = textColor,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "▶",
+                            color = accentRed,
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    val age = activeChapter?.currentAge ?: 25
+                    val days = activeChapter?.daysPassed ?: 319
+                    val level = userStats?.level ?: 2
+                    val exp = userStats?.exp ?: 25
+                    val maxExp = userStats?.maxExp ?: 100
+                    val remainExp = (maxExp - exp).coerceAtLeast(0)
+
+                    Text(
+                        text = "Lv.$level · 距下一级 ${remainExp}EXP · ${age}岁 · 第${days}天",
+                        color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp
+                    )
+
+                    Text(
+                        text = userStats?.title ?: "体制攻坚 × 职业护城河黄金期",
+                        color = accentRed,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 10.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+// =========================================================================
+// 2. 三种模式并列切换标签栏 (Mode Selector Bar)
+// =========================================================================
+@Composable
+private fun ModeSelectorBar(
+    currentMode: JournalMode,
+    onSelectMode: (JournalMode) -> Unit,
+    isCartridge: Boolean
+) {
+    val borderColor = if (isCartridge) CartridgeBorder else RetroCardBorder
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .border(1.5.dp, borderColor, RoundedCornerShape(6.dp))
+            .background(if (isCartridge) Color(0xFFECE6DC) else RetroDarkBg)
+            .padding(2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        JournalMode.values().forEach { mode ->
+            val isSelected = currentMode == mode
+            val activeBg = if (isCartridge) CartridgeGreen else RetroGreenPrimary
+            val activeText = if (isCartridge) CartridgeCard else RetroDarkBg
+            val inactiveText = if (isCartridge) CartridgeText else RetroGreenText
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(if (isSelected) activeBg else Color.Transparent)
+                    .clickable { onSelectMode(mode) }
+                    .padding(vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = mode.icon,
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = mode.title,
+                            color = if (isSelected) activeText else inactiveText,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(1.dp))
+                    Text(
+                        text = mode.enTag,
+                        color = if (isSelected) activeText.copy(alpha = 0.85f) else (if (isCartridge) CartridgeTextMuted else RetroCardBorderLight),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+    }
+}
+
+// =========================================================================
+// 3. 模式一：日课 (DAILY) 详细内容
+// =========================================================================
+@Composable
+private fun DailyModeContent(
+    tasks: List<TaskItem>,
+    steps: Int,
+    activeCampaign: Campaign?,
+    journalInput: String,
+    onJournalInputChange: (String) -> Unit,
+    newTaskTitle: String,
+    onNewTaskTitleChange: (String) -> Unit,
+    voiceInputText: String,
+    onVoiceInputChange: (String) -> Unit,
+    isRecording: Boolean,
+    isTranscribing: Boolean,
+    isDecomposing: Boolean,
+    isSettling: Boolean,
+    candidateTasks: List<DecomposedTask>,
+    onCandidateTasksChange: (List<DecomposedTask>) -> Unit,
+    onMicClick: () -> Unit,
+    onStopRecording: () -> Unit,
+    onCancelRecording: () -> Unit,
+    onTriggerDecompose: () -> Unit,
+    onConfirmCandidateTasks: () -> Unit,
+    onToggleTask: (TaskItem) -> Unit,
+    onDeleteTask: (TaskItem) -> Unit,
+    onAddSingleTask: () -> Unit,
+    onAddSensorSteps: () -> Unit,
+    onExecuteSettlement: () -> Unit,
+    onNavigateToCampaign: () -> Unit,
+    isCartridge: Boolean
+) {
+    val accentRed = if (isCartridge) CartridgeAccentRed else RetroAmber
+    val primaryGreen = if (isCartridge) CartridgeGreen else RetroGreenPrimary
+    val textColor = if (isCartridge) CartridgeText else RetroGreenText
+
+    // 0. 当前正在推进的战役联动胶囊横幅
+    if (activeCampaign != null) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(6.dp))
+                .background(if (isCartridge) Color(0xFFF7F1E6) else Color(0xFF14241B))
+                .border(1.5.dp, if (isCartridge) CartridgeGreenLight else RetroCardBorderLight, RoundedCornerShape(6.dp))
+                .clickable { onNavigateToCampaign() }
+                .padding(horizontal = 10.dp, vertical = 8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "🎯", fontSize = 16.sp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "正在推进战役",
+                            color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(accentRed)
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = "主线",
+                                color = Color.White,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = activeCampaign.title,
+                        color = primaryGreen,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        text = "进度: ${activeCampaign.currentProgress}/${activeCampaign.targetTotal}${activeCampaign.unit} · 打卡带 [🎯] 任务自动累加",
+                        color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp
+                    )
+                }
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "查看战役 ▶",
+                    color = accentRed,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+    }
+
+    // 1. 安卓传感器采集卡片
+    RetroContainer(title = "安卓端自动采集", subtitle = "SENSOR ACTIVE") {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "今日计步传感器",
+                    color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp
+                )
+                Text(
+                    text = "$steps 步",
+                    color = primaryGreen,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp
+                )
+            }
+
+            Button(
+                onClick = onAddSensorSteps,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isCartridge) CartridgeGreen else RetroDarkBg,
+                    contentColor = if (isCartridge) CartridgeCard else RetroGreenPrimary
+                ),
+                shape = RoundedCornerShape(4.dp),
+                modifier = Modifier.height(34.dp)
+            ) {
+                Text("+1000步测试", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+            }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(10.dp))
+
+    // 2. 任务清单与习惯打卡卡片 (支持语音与AI智能拆解)
+    RetroContainer(
+        title = "任务清单与习惯打卡",
+        subtitle = "${tasks.count { it.isCompleted }}/${tasks.size} 已完成"
+    ) {
+        // 语音 / 一句话 AI 智能拆解区域
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(6.dp))
+                .background(if (isCartridge) Color(0xFFF3EFE7) else Color(0xFF0F1A13))
+                .border(1.dp, if (isCartridge) CartridgeBorder else RetroCardBorder, RoundedCornerShape(6.dp))
+                .padding(10.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = accentRed,
+                    modifier = Modifier.size(15.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "/// 语音 / 一句话 AI 智能拆解任务",
+                    color = accentRed,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 录音状态栏
+            if (isRecording) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFF331111))
+                        .border(1.dp, Color(0xFFFF5252), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFF5252))
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "正在录音中... 请清晰说出安排",
+                        color = Color(0xFFFFCDD2),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    Button(
+                        onClick = onStopRecording,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFF5252),
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("完成", fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    OutlinedButton(
+                        onClick = onCancelRecording,
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("取消", color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                    }
+                }
+            } else if (isTranscribing) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (isCartridge) Color(0xFFE8F4FD) else Color(0xFF0F2027))
+                        .border(1.dp, Color(0xFF4FC3F7), RoundedCornerShape(6.dp))
+                        .padding(10.dp)
+                ) {
+                    CircularProgressIndicator(
+                        color = Color(0xFF4FC3F7),
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "SenseVoice AI 极速高精度语音转写中...",
+                        color = Color(0xFF0288D1),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp
+                    )
+                }
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = voiceInputText,
+                        onValueChange = onVoiceInputChange,
+                        placeholder = {
+                            Text(
+                                "点击右侧麦克风录音，或在此打字 (如：做50道行测题，背30分钟法条)",
+                                color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                lineHeight = 14.sp
+                            )
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(60.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = textColor,
+                            unfocusedTextColor = textColor,
+                            focusedBorderColor = primaryGreen,
+                            unfocusedBorderColor = if (isCartridge) CartridgeBorder else RetroCardBorder,
+                            focusedContainerColor = if (isCartridge) CartridgeCardWhite else RetroDarkBg,
+                            unfocusedContainerColor = if (isCartridge) CartridgeCardWhite else RetroDarkBg
+                        ),
+                        shape = RoundedCornerShape(4.dp),
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    IconButton(
+                        onClick = onMicClick,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(primaryGreen)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Mic,
+                            contentDescription = "开始语音录入",
+                            tint = if (isCartridge) CartridgeCard else RetroDarkBg,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(
+                onClick = onTriggerDecompose,
+                enabled = !isDecomposing && !isRecording && !isTranscribing && voiceInputText.isNotBlank(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isCartridge) CartridgeGreen else RetroDarkBg,
+                    contentColor = if (isCartridge) CartridgeCard else RetroGreenPrimary
+                ),
+                shape = RoundedCornerShape(4.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, primaryGreen)
+            ) {
+                if (isDecomposing) {
+                    CircularProgressIndicator(
+                        color = if (isCartridge) CartridgeCard else RetroGreenPrimary,
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("AI 语义分析与战役关联标注中...", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                } else {
+                    Text("🪄 AI 智能拆解为任务清单 (PARSE)", fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        // 候选任务预览勾选区
+        if (candidateTasks.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (isCartridge) Color(0xFFF1F6F2) else Color(0xFF0C2417))
+                    .border(1.dp, primaryGreen, RoundedCornerShape(6.dp))
+                    .padding(10.dp)
+            ) {
+                Text(
+                    text = "✓ AI 识别出 ${candidateTasks.size} 个原子任务（勾选确认后加入今日清单）：",
+                    color = primaryGreen,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                candidateTasks.forEachIndexed { index, task ->
+                    val isExamTask = task.title.contains("题") || task.title.contains("行测") ||
+                            task.title.contains("申论") || task.title.contains("考公")
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (isCartridge) CartridgeCardWhite else RetroDarkBg)
+                            .padding(horizontal = 6.dp, vertical = 6.dp)
+                            .clickable {
+                                onCandidateTasksChange(candidateTasks.toMutableList().also {
+                                    it[index] = it[index].copy(isSelected = !it[index].isSelected)
+                                })
+                            }
+                    ) {
+                        Checkbox(
+                            checked = task.isSelected,
+                            onCheckedChange = { checked ->
+                                onCandidateTasksChange(candidateTasks.toMutableList().also {
+                                    it[index] = it[index].copy(isSelected = checked)
+                                })
+                            },
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = primaryGreen,
+                                uncheckedColor = if (isCartridge) CartridgeBorder else RetroCardBorder,
+                                checkmarkColor = if (isCartridge) CartridgeCard else RetroDarkBg
+                            ),
+                            modifier = Modifier.size(24.dp)
+                        )
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = task.title,
+                                color = textColor,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (isExamTask) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(2.dp))
+                                            .background(accentRed)
+                                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                                    ) {
+                                        Text(
+                                            text = "🎯 2026考公",
+                                            color = Color.White,
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                }
+
+                                Text(
+                                    text = "[${task.targetAttribute}]",
+                                    color = primaryGreen,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "+${task.expReward} EXP",
+                                    color = accentRed,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = { onCandidateTasksChange(emptyList()) },
+                        modifier = Modifier.height(34.dp),
+                        shape = RoundedCornerShape(4.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isCartridge) CartridgeBorder else RetroCardBorder)
+                    ) {
+                        Text("取消", color = if (isCartridge) CartridgeTextMuted else RetroMuted, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    val selectedCount = candidateTasks.count { it.isSelected }
+                    Button(
+                        onClick = onConfirmCandidateTasks,
+                        enabled = selectedCount > 0,
+                        modifier = Modifier.height(34.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = primaryGreen,
+                            contentColor = if (isCartridge) CartridgeCard else RetroDarkBg
+                        ),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("确认添加 ($selectedCount)", fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // 正式任务列表
+        tasks.forEach { task ->
+            TaskRowItem(
+                task = task,
+                onToggle = { onToggleTask(task) },
+                onDelete = { onDeleteTask(task) },
+                isCartridge = isCartridge
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 快速手动单条添加任务输入框
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            OutlinedTextField(
+                value = newTaskTitle,
+                onValueChange = onNewTaskTitleChange,
+                placeholder = {
+                    Text(
+                        "手动单条添加 (如: 晚间复盘错题本20分钟)",
+                        color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp
+                    )
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = textColor,
+                    unfocusedTextColor = textColor,
+                    focusedBorderColor = primaryGreen,
+                    unfocusedBorderColor = if (isCartridge) CartridgeBorder else RetroCardBorder,
+                    focusedContainerColor = if (isCartridge) CartridgeCardWhite else RetroDarkBg,
+                    unfocusedContainerColor = if (isCartridge) CartridgeCardWhite else RetroDarkBg
+                ),
+                shape = RoundedCornerShape(4.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp
+                )
+            )
+
+            Spacer(modifier = Modifier.width(6.dp))
+
+            IconButton(
+                onClick = onAddSingleTask,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(primaryGreen)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "添加", tint = if (isCartridge) CartridgeCard else RetroDarkBg)
+            }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(10.dp))
+
+    // 3. 极简流水账随手记与战报结算卡片
+    RetroContainer(title = "极简流水账随手记", subtitle = "DAILY LOG") {
+        Text(
+            text = "写下今日真实行动，AI 将根据《高性价比人生指南》防御标尺折算经验、属性变化与战报。",
+            color = if (isCartridge) CartridgeTextMuted else RetroGreenText.copy(alpha = 0.7f),
+            fontFamily = FontFamily.Monospace,
+            fontSize = 11.sp,
+            lineHeight = 15.sp
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = journalInput,
+            onValueChange = onJournalInputChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(100.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = textColor,
+                unfocusedTextColor = textColor,
+                focusedBorderColor = primaryGreen,
+                unfocusedBorderColor = if (isCartridge) CartridgeBorder else RetroCardBorder,
+                focusedContainerColor = if (isCartridge) CartridgeCardWhite else RetroDarkBg,
+                unfocusedContainerColor = if (isCartridge) CartridgeCardWhite else RetroDarkBg
+            ),
+            shape = RoundedCornerShape(4.dp),
+            textStyle = androidx.compose.ui.text.TextStyle(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp
+            )
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Button(
+            onClick = onExecuteSettlement,
+            enabled = !isSettling && journalInput.isNotBlank(),
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = primaryGreen,
+                contentColor = if (isCartridge) CartridgeCard else RetroDarkBg
+            ),
+            shape = RoundedCornerShape(4.dp)
+        ) {
+            if (isSettling) {
+                CircularProgressIndicator(
+                    color = if (isCartridge) CartridgeCard else RetroDarkBg,
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("AI 裁决经验中...", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+            } else {
+                Text(
+                    text = "⚡ 今日战报结算 (EXECUTE SETTLEMENT)",
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+            }
+        }
+    }
+}
+
+// =========================================================================
+// 4. 模式二：战役 (CAMPAIGN) 详细内容
+// =========================================================================
+@Composable
+private fun CampaignModeContent(
+    campaign: Campaign?,
+    chapter: LifeChapter?,
+    onBoost: (Int) -> Unit,
+    onNavigateToChapter: () -> Unit,
+    onNavigateToDaily: () -> Unit,
+    isCartridge: Boolean
+) {
+    val accentRed = if (isCartridge) CartridgeAccentRed else RetroAmber
+    val primaryGreen = if (isCartridge) CartridgeGreen else RetroGreenPrimary
+    val textColor = if (isCartridge) CartridgeText else RetroGreenText
+    val borderColor = if (isCartridge) CartridgeBorder else RetroCardBorder
+    val cardWhite = if (isCartridge) CartridgeCardWhite else RetroCardBg
+
+    val currentProg = campaign?.currentProgress ?: 504
+    val targetProg = campaign?.targetTotal ?: 1200
+    val progressRatio = if (targetProg > 0) (currentProg.toFloat() / targetProg).coerceIn(0f, 1f) else 0f
+    val percentStr = String.format(Locale.getDefault(), "%.1f", progressRatio * 100f)
+
+    // 战役主面板
+    RetroContainer(
+        title = "阶段战役跟踪",
+        subtitle = "ACTIVE CAMPAIGN"
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // 战役标题与归属篇章
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = campaign?.title ?: "2026 公务员考公上岸冲刺战役",
+                    color = primaryGreen,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 15.sp,
+                    modifier = Modifier.weight(1f)
+                )
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(accentRed)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "倒计时 85 天",
+                        color = Color.White,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // 归属篇章标签（点击跳篇章）
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable { onNavigateToChapter() }
+                    .padding(vertical = 2.dp)
+            ) {
+                Text(
+                    text = "🏛️ 归属篇章: ${chapter?.title ?: "25~35岁 · 立业与职业护城河黄金十年"}",
+                    color = if (isCartridge) CartridgeGreenLight else RetroGreenPrimary,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(text = "▶", color = accentRed, fontSize = 10.sp)
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "目标达成日期: ${campaign?.targetDate ?: "2026-12-01"} · ${campaign?.stageName ?: "阶段二：真题与模块题海冲刺"}",
+                color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 10.sp
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 像素垂直刻度进度条
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "冲刺进度",
+                    color = textColor,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = "$currentProg / $targetProg ${campaign?.unit ?: "题"} ($percentStr%)",
+                    color = primaryGreen,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 13.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            PixelSegmentedBar(
+                progress = progressRatio,
+                totalTicks = 40,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 联动机制说明提示盒
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (isCartridge) Color(0xFFF7F4EC) else Color(0xFF14241B))
+                    .border(1.dp, if (isCartridge) Color(0xFFDED8CB) else RetroCardBorder, RoundedCornerShape(6.dp))
+                    .padding(10.dp)
+            ) {
+                Row(verticalAlignment = Alignment.Top) {
+                    Text(text = "💡", fontSize = 13.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Column {
+                        Text(
+                            text = "双向联动机制：",
+                            color = primaryGreen,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "在【日课】中打卡带有 [🎯 2026考公] 标签的任务，会自动按题数累加到本战役！亦可点击下方快速推进：",
+                            color = if (isCartridge) CartridgeText else RetroGreenText.copy(alpha = 0.8f),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            lineHeight = 14.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 快捷推进按钮组
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { onBoost(10) },
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = primaryGreen,
+                        contentColor = if (isCartridge) CartridgeCard else RetroDarkBg
+                    ),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text("+10 题 (随手练)", fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Button(
+                    onClick = { onBoost(50) },
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isCartridge) CartridgeCardWhite else RetroDarkBg,
+                        contentColor = primaryGreen
+                    ),
+                    shape = RoundedCornerShape(4.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, primaryGreen)
+                ) {
+                    Text("+50 题 (模考卷)", fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Button(
+                    onClick = onNavigateToDaily,
+                    modifier = Modifier.height(36.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isCartridge) Color(0xFFE8E2D5) else Color(0xFF1E281D),
+                        contentColor = textColor
+                    ),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text("去打卡 ▶", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                }
+            }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+
+    // 战役里程碑分期路线
+    RetroContainer(title = "战役攻坚四阶段里程碑", subtitle = "MILESTONES") {
+        MilestoneItem(
+            status = "✓ 已达成",
+            title = "阶段一：基础考点全覆盖与高频词汇背诵",
+            desc = "言语理解、判断推理基本逻辑框架通读，错题集框架搭建完成",
+            isDone = true,
+            isCurrent = false,
+            isCartridge = isCartridge
+        )
+        MilestoneItem(
+            status = "▶ 进行中",
+            title = "阶段二：行测五大模块强化与真题刷题",
+            desc = "当前进度: $currentProg / $targetProg 题，重点攻克资料分析计算速度与言语正确率",
+            isDone = false,
+            isCurrent = true,
+            isCartridge = isCartridge
+        )
+        MilestoneItem(
+            status = "○ 待解锁",
+            title = "阶段三：申论热点积累与全真模考冲刺",
+            desc = "公文写作格式固化，大作文金句积累，限时全真模考（目标20套）",
+            isDone = false,
+            isCurrent = false,
+            isCartridge = isCartridge
+        )
+        MilestoneItem(
+            status = "○ 待解锁",
+            title = "阶段四：考前两周全真模拟与心态调适",
+            desc = "生物钟调整至考试时段，严防失眠与体能透支，轻量刷错题本",
+            isDone = false,
+            isCurrent = false,
+            isCartridge = isCartridge
+        )
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+
+    // 《HowToLiveBetter》指导建议
+    RetroContainer(title = "HowToLiveBetter 防御指南", subtitle = "STRATEGY") {
+        Text(
+            text = "【体制壁垒在防御优先体系中的定位】\n根据《高性价比人生指南》，体制内考试是个人对抗宏观周期波动、防止断崖式失业的最强护城河之一。\n\n" +
+                    "• 小步高频：避免单日过度疲劳导致弃坑，保持每天 30~50 题的神经突触活跃。\n" +
+                    "• 循证健康：睡足 7.5 小时，睡眠期是大脑将短期刷题记忆固化为长期技能的关键期。",
+            color = if (isCartridge) CartridgeText else RetroGreenText.copy(alpha = 0.85f),
+            fontFamily = FontFamily.Monospace,
+            fontSize = 11.sp,
+            lineHeight = 16.sp
+        )
+    }
+}
+
+// =========================================================================
+// 5. 模式三：篇章 (CHAPTER) 详细内容
+// =========================================================================
+@Composable
+private fun ChapterModeContent(
+    chapter: LifeChapter?,
+    activeCampaign: Campaign?,
+    onNavigateToCampaign: () -> Unit,
+    isCartridge: Boolean
+) {
+    val accentRed = if (isCartridge) CartridgeAccentRed else RetroAmber
+    val primaryGreen = if (isCartridge) CartridgeGreen else RetroGreenPrimary
+    val textColor = if (isCartridge) CartridgeText else RetroGreenText
+    val borderColor = if (isCartridge) CartridgeBorder else RetroCardBorder
+
+    val age = chapter?.currentAge ?: 25
+    val daysPassed = chapter?.daysPassed ?: 319
+    val totalTenYearDays = 3650
+    val daysRemain = (totalTenYearDays - daysPassed).coerceAtLeast(0)
+    val tenYearProgress = (daysPassed.toFloat() / totalTenYearDays).coerceIn(0f, 1f)
+    val tenYearPercent = String.format(Locale.getDefault(), "%.1f", tenYearProgress * 100f)
+
+    // 篇章主面板
+    RetroContainer(title = "人生宏观篇章蓝图", subtitle = "LIFE CHAPTER") {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = chapter?.title ?: "25 ~ 35 岁 · 立业与职业护城河黄金十年",
+                color = primaryGreen,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Black,
+                fontSize = 15.sp
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = "年龄流速计: 当前 $age 岁 · 已走过第 $daysPassed 天 (本黄金十年还剩 $daysRemain 天)",
+                color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 十年光阴进度条
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "十年时间流逝",
+                    color = textColor,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = "$daysPassed / $totalTenYearDays 天 ($tenYearPercent%)",
+                    color = accentRed,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            PixelSegmentedBar(
+                progress = tenYearProgress,
+                totalTicks = 40,
+                activeColor = accentRed,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = chapter?.description ?: "根据《高性价比人生指南》，25~35岁是个人核心技能定型、抗风险安全垫搭建的最关键窗口期。此时应防御优先于盲目盲干，全力攻坚体制或专业资质护城河。",
+                color = if (isCartridge) CartridgeText else RetroGreenText.copy(alpha = 0.85f),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+                lineHeight = 16.sp
+            )
+        }
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+
+    // 篇章三大防御支柱 (Defense Pillars)
+    RetroContainer(title = "黄金十年三大防御支柱", subtitle = "PILLARS") {
+        DefensePillarItem(
+            attrTag = "TEC 算力",
+            title = "体制/专业资质护城河",
+            desc = "攻坚具备制度保护壁垒的体制内岗位。当前主线：2026 公务员考试上岸冲刺战役 (42%)",
+            status = "战役进行中 ▶",
+            statusColor = primaryGreen,
+            onClick = onNavigateToCampaign,
+            isCartridge = isCartridge
+        )
+        DefensePillarItem(
+            attrTag = "GOLD 财商",
+            title = "极简开支与应急安全垫",
+            desc = "拒绝加高杠杆与盲目消费主义，维持 6~12 个月极端情况生活备用金，杜绝意外致贫",
+            status = "已构筑",
+            statusColor = accentRed,
+            onClick = null,
+            isCartridge = isCartridge
+        )
+        DefensePillarItem(
+            attrTag = "VIT 气血",
+            title = "睡眠与体能底线防线",
+            desc = "规律 7.5 小时睡眠 + 每日 6000 步轻量运动，守护免疫力，严防重大疾病与早衰",
+            status = "每日维护中",
+            statusColor = primaryGreen,
+            onClick = null,
+            isCartridge = isCartridge
+        )
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+
+    // 人生全景篇章管道流 (Life Pipeline)
+    RetroContainer(title = "人生全景路线规划", subtitle = "ROADMAP") {
+        RoadmapStageItem(stage = "18 ~ 24 岁", title = "认知与试错阶段", tag = "已达成 ✓", isPassed = true, isCurrent = false, isCartridge = isCartridge)
+        RoadmapStageItem(stage = "25 ~ 35 岁", title = "立业与职业护城河黄金十年", tag = "当前推进中 ▶", isPassed = false, isCurrent = true, isCartridge = isCartridge)
+        RoadmapStageItem(stage = "35 ~ 45 岁", title = "守成与多重复利期", tag = "规划中 ○", isPassed = false, isCurrent = false, isCartridge = isCartridge)
+        RoadmapStageItem(stage = "45+ 岁", title = "自由与抗脆弱生态期", tag = "远景规划", isPassed = false, isCurrent = false, isCartridge = isCartridge)
+    }
+}
+
+// =========================================================================
+// 6. 辅助小组件 (Helper Item Components)
+// =========================================================================
 @Composable
 private fun TaskRowItem(
     task: TaskItem,
     onToggle: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    isCartridge: Boolean
 ) {
+    val borderColor = if (isCartridge) CartridgeBorder else RetroCardBorder
+    val cardBg = if (isCartridge) CartridgeCardWhite else RetroDarkBg
+    val primaryGreen = if (isCartridge) CartridgeGreen else RetroGreenPrimary
+    val accentRed = if (isCartridge) CartridgeAccentRed else RetroAmber
+    val textColor = if (isCartridge) CartridgeText else RetroGreenText
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(4.dp))
-            .background(RetroDarkBg)
+            .background(cardBg)
+            .border(1.dp, borderColor.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
             .padding(horizontal = 8.dp, vertical = 6.dp)
-            .padding(bottom = 4.dp)
+            .padding(bottom = 2.dp)
             .clickable { onToggle() }
     ) {
         Icon(
             imageVector = if (task.isCompleted) Icons.Default.CheckCircle else Icons.Outlined.Circle,
             contentDescription = null,
-            tint = if (task.isCompleted) RetroGreenPrimary else RetroMuted,
+            tint = if (task.isCompleted) primaryGreen else if (isCartridge) CartridgeTextMuted else RetroMuted,
             modifier = Modifier.size(18.dp)
         )
 
         Spacer(modifier = Modifier.width(8.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = task.title,
-                color = if (task.isCompleted) RetroMuted else RetroGreenText,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
-                textDecoration = if (task.isCompleted) TextDecoration.LineThrough else TextDecoration.None
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // 若关联了阶段战役标签
+                if (task.campaignTag.isNotBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(accentRed)
+                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                    ) {
+                        Text(
+                            text = task.campaignTag,
+                            color = Color.White,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 9.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                }
+
+                Text(
+                    text = task.title,
+                    color = if (task.isCompleted) if (isCartridge) CartridgeTextMuted else RetroMuted else textColor,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textDecoration = if (task.isCompleted) TextDecoration.LineThrough else TextDecoration.None
+                )
+            }
+
             if (task.description.isNotBlank()) {
                 Text(
                     text = task.description,
-                    color = RetroCardBorderLight,
+                    color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 10.sp
                 )
@@ -759,17 +1631,19 @@ private fun TaskRowItem(
 
         Spacer(modifier = Modifier.width(4.dp))
 
-        // 属性标签与经验徽章
+        // 经验徽章 (复古砖红/琥珀)
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(3.dp))
-                .background(RetroCardBorder)
+                .background(if (isCartridge) Color(0xFFF0EBE1) else RetroCardBorder)
+                .border(1.dp, if (isCartridge) CartridgeBorder.copy(alpha = 0.4f) else RetroCardBorder, RoundedCornerShape(3.dp))
                 .padding(horizontal = 4.dp, vertical = 2.dp)
         ) {
             Text(
                 text = "${task.targetAttribute} +${task.expReward}",
-                color = RetroAmber,
+                color = accentRed,
                 fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
                 fontSize = 9.sp
             )
         }
@@ -783,9 +1657,178 @@ private fun TaskRowItem(
             Icon(
                 imageVector = Icons.Default.Delete,
                 contentDescription = "删除",
-                tint = RetroMuted,
+                tint = if (isCartridge) CartridgeTextMuted else RetroMuted,
                 modifier = Modifier.size(14.dp)
             )
         }
+    }
+    Spacer(modifier = Modifier.height(4.dp))
+}
+
+@Composable
+private fun MilestoneItem(
+    status: String,
+    title: String,
+    desc: String,
+    isDone: Boolean,
+    isCurrent: Boolean,
+    isCartridge: Boolean
+) {
+    val primaryGreen = if (isCartridge) CartridgeGreen else RetroGreenPrimary
+    val accentRed = if (isCartridge) CartridgeAccentRed else RetroAmber
+    val cardWhite = if (isCartridge) CartridgeCardWhite else RetroDarkBg
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(4.dp))
+            .background(cardWhite)
+            .border(
+                1.dp,
+                if (isCurrent) primaryGreen else if (isCartridge) CartridgeBorder.copy(alpha = 0.3f) else RetroCardBorder,
+                RoundedCornerShape(4.dp)
+            )
+            .padding(8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(if (isDone) primaryGreen else if (isCurrent) accentRed else Color.Gray)
+                    .padding(horizontal = 4.dp, vertical = 1.dp)
+            ) {
+                Text(
+                    text = status,
+                    color = Color.White,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = title,
+                color = if (isCartridge) CartridgeText else RetroGreenText,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp
+            )
+        }
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = desc,
+            color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
+            lineHeight = 14.sp
+        )
+    }
+    Spacer(modifier = Modifier.height(6.dp))
+}
+
+@Composable
+private fun DefensePillarItem(
+    attrTag: String,
+    title: String,
+    desc: String,
+    status: String,
+    statusColor: Color,
+    onClick: (() -> Unit)?,
+    isCartridge: Boolean
+) {
+    val cardWhite = if (isCartridge) CartridgeCardWhite else RetroDarkBg
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(4.dp))
+            .background(cardWhite)
+            .border(1.dp, if (isCartridge) CartridgeBorder.copy(alpha = 0.4f) else RetroCardBorder, RoundedCornerShape(4.dp))
+            .clickable(enabled = onClick != null) { onClick?.invoke() }
+            .padding(8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(if (isCartridge) CartridgeGreen else RetroGreenPrimary)
+                    .padding(horizontal = 5.dp, vertical = 1.dp)
+            ) {
+                Text(
+                    text = attrTag,
+                    color = if (isCartridge) CartridgeCard else RetroDarkBg,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = title,
+                color = if (isCartridge) CartridgeText else RetroGreenText,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = status,
+                color = statusColor,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp
+            )
+        }
+        Spacer(modifier = Modifier.height(3.dp))
+        Text(
+            text = desc,
+            color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
+            lineHeight = 14.sp
+        )
+    }
+    Spacer(modifier = Modifier.height(6.dp))
+}
+
+@Composable
+private fun RoadmapStageItem(
+    stage: String,
+    title: String,
+    tag: String,
+    isPassed: Boolean,
+    isCurrent: Boolean,
+    isCartridge: Boolean
+) {
+    val primaryGreen = if (isCartridge) CartridgeGreen else RetroGreenPrimary
+    val accentRed = if (isCartridge) CartridgeAccentRed else RetroAmber
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        Text(
+            text = stage,
+            color = if (isCurrent) accentRed else if (isPassed) primaryGreen else Color.Gray,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 11.sp,
+            modifier = Modifier.width(85.dp)
+        )
+        Text(
+            text = title,
+            color = if (isCartridge) CartridgeText else RetroGreenText,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 11.sp,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = tag,
+            color = if (isCurrent) accentRed else if (isPassed) primaryGreen else Color.Gray,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp
+        )
     }
 }

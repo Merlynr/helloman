@@ -22,6 +22,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,8 +35,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lifeonline.app.data.repository.LifeOnlineRepository
 import com.lifeonline.app.ui.components.RetroContainer
+import com.lifeonline.app.ui.theme.CartridgeAccentRed
+import com.lifeonline.app.ui.theme.CartridgeBg
+import com.lifeonline.app.ui.theme.CartridgeBorder
+import com.lifeonline.app.ui.theme.CartridgeCard
+import com.lifeonline.app.ui.theme.CartridgeCardWhite
+import com.lifeonline.app.ui.theme.CartridgeGreen
+import com.lifeonline.app.ui.theme.CartridgeText
+import com.lifeonline.app.ui.theme.LocalIsCartridgeTheme
 import com.lifeonline.app.ui.theme.RetroAmber
 import com.lifeonline.app.ui.theme.RetroCardBorder
+import com.lifeonline.app.ui.theme.RetroCardBorderLight
 import com.lifeonline.app.ui.theme.RetroDarkBg
 import com.lifeonline.app.ui.theme.RetroGreenPrimary
 import com.lifeonline.app.ui.theme.RetroGreenText
@@ -50,6 +60,7 @@ fun SettingsScreen(
     val aiClient = repository.aiClient
     val daemonClient = repository.daemonClient
     val scope = rememberCoroutineScope()
+    val isCartridge by repository.isCartridgeThemeFlow.collectAsState()
 
     var daemonUrl by remember { mutableStateOf(daemonClient.serverUrl) }
     var daemonStatus by remember { mutableStateOf("") }
@@ -63,10 +74,95 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(RetroDarkBg)
+            .background(if (isCartridge) CartridgeBg else RetroDarkBg)
             .padding(horizontal = 14.dp, vertical = 10.dp)
             .verticalScroll(rememberScrollState())
     ) {
+        // -1. 界面画风设置 (THEME SWITCHER)
+        RetroContainer(title = "界面画风设置", subtitle = "THEME") {
+            Text(
+                text = "可随时切换复古游戏存档画风或经典赛博黑客终端画风：",
+                color = if (isCartridge) CartridgeText else RetroGreenText.copy(alpha = 0.7f),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // 暖白复古卡带
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (isCartridge) CartridgeGreen else RetroDarkBg)
+                        .border(
+                            2.dp,
+                            if (isCartridge) CartridgeGreen else RetroCardBorder,
+                            RoundedCornerShape(6.dp)
+                        )
+                        .clickable { repository.setCartridgeTheme(true) }
+                        .padding(vertical = 12.dp, horizontal = 8.dp),
+                    contentAlignment = androidx.compose.ui.Alignment.Center
+                ) {
+                    Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                        Text(
+                            text = "📜 暖白复古卡带",
+                            color = if (isCartridge) CartridgeCard else RetroGreenText,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "(精美米白纸质/深绿刻度)",
+                            color = if (isCartridge) CartridgeCard.copy(alpha = 0.8f) else RetroCardBorderLight,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 9.sp
+                        )
+                    }
+                }
+
+                // 赛博黑客暗黑
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (!isCartridge) RetroGreenPrimary else if (isCartridge) CartridgeCardWhite else RetroDarkBg)
+                        .border(
+                            2.dp,
+                            if (!isCartridge) RetroGreenPrimary else if (isCartridge) CartridgeBorder.copy(alpha = 0.5f) else RetroCardBorder,
+                            RoundedCornerShape(6.dp)
+                        )
+                        .clickable { repository.setCartridgeTheme(false) }
+                        .padding(vertical = 12.dp, horizontal = 8.dp),
+                    contentAlignment = androidx.compose.ui.Alignment.Center
+                ) {
+                    Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                        Text(
+                            text = "💻 赛博黑客暗黑",
+                            color = if (!isCartridge) RetroDarkBg else if (isCartridge) CartridgeText else RetroGreenText,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "(深邃纯黑底/终端荧光绿)",
+                            color = if (!isCartridge) RetroDarkBg.copy(alpha = 0.8f) else if (isCartridge) CartridgeText.copy(alpha = 0.6f) else RetroCardBorderLight,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 9.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
         // 0. C/S 模式：电脑端 Agent 守护进程配置
         RetroContainer(title = "C/S 模式 · 电脑端 Agent 守护进程", subtitle = "DAEMON") {
             Text(
@@ -398,13 +494,26 @@ private fun PresetChip(
 }
 
 @Composable
-private fun textFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedTextColor = RetroGreenText,
-    unfocusedTextColor = RetroGreenText,
-    focusedBorderColor = RetroGreenPrimary,
-    unfocusedBorderColor = RetroCardBorder,
-    focusedContainerColor = RetroDarkBg,
-    unfocusedContainerColor = RetroDarkBg,
-    focusedLabelColor = RetroGreenPrimary,
-    unfocusedLabelColor = RetroCardBorder
-)
+private fun textFieldColors() = if (LocalIsCartridgeTheme.current) {
+    OutlinedTextFieldDefaults.colors(
+        focusedTextColor = CartridgeText,
+        unfocusedTextColor = CartridgeText,
+        focusedBorderColor = CartridgeGreen,
+        unfocusedBorderColor = CartridgeBorder.copy(alpha = 0.5f),
+        focusedContainerColor = CartridgeCardWhite,
+        unfocusedContainerColor = CartridgeCardWhite,
+        focusedLabelColor = CartridgeGreen,
+        unfocusedLabelColor = CartridgeText.copy(alpha = 0.7f)
+    )
+} else {
+    OutlinedTextFieldDefaults.colors(
+        focusedTextColor = RetroGreenText,
+        unfocusedTextColor = RetroGreenText,
+        focusedBorderColor = RetroGreenPrimary,
+        unfocusedBorderColor = RetroCardBorder,
+        focusedContainerColor = RetroDarkBg,
+        unfocusedContainerColor = RetroDarkBg,
+        focusedLabelColor = RetroGreenPrimary,
+        unfocusedLabelColor = RetroCardBorder
+    )
+}

@@ -19,6 +19,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lifeonline.app.ui.theme.CartridgeBorder
+import com.lifeonline.app.ui.theme.CartridgeCard
+import com.lifeonline.app.ui.theme.CartridgeCardWhite
+import com.lifeonline.app.ui.theme.CartridgeGreen
+import com.lifeonline.app.ui.theme.CartridgeTextMuted
+import com.lifeonline.app.ui.theme.LocalIsCartridgeTheme
 import com.lifeonline.app.ui.theme.RetroCardBg
 import com.lifeonline.app.ui.theme.RetroCardBorder
 import com.lifeonline.app.ui.theme.RetroCardBorderLight
@@ -32,12 +38,19 @@ fun RetroContainer(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
+    val isCartridge = LocalIsCartridgeTheme.current
+
+    val bg = if (isCartridge) CartridgeCardWhite else RetroCardBg
+    val borderCol = if (isCartridge) CartridgeBorder else RetroCardBorder
+    val borderWidth = if (isCartridge) 2.dp else 1.5.dp
+    val radius = if (isCartridge) 8.dp else 6.dp
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
-            .background(RetroCardBg)
-            .border(1.5.dp, RetroCardBorder, RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(radius))
+            .background(bg)
+            .border(borderWidth, borderCol, RoundedCornerShape(radius))
             .padding(12.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -48,26 +61,46 @@ fun RetroContainer(
                         .fillMaxWidth()
                         .padding(bottom = 8.dp)
                 ) {
-                    Text(
-                        text = "///",
-                        color = RetroGreenPrimary,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 14.sp
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = title,
-                        color = RetroGreenText,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 13.sp
-                    )
+                    if (isCartridge) {
+                        // 暖白卡带风格的反白标签
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(CartridgeGreen)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "/// $title",
+                                color = CartridgeCard,
+                                fontWeight = FontWeight.Black,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp
+                            )
+                        }
+                    } else {
+                        // 黑客暗黑绿风格
+                        Text(
+                            text = "///",
+                            color = RetroGreenPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = title,
+                            color = RetroGreenText,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 13.sp
+                        )
+                    }
+
                     if (subtitle != null) {
                         Spacer(modifier = Modifier.weight(1f))
                         Text(
                             text = subtitle,
-                            color = RetroCardBorderLight,
+                            color = if (isCartridge) CartridgeTextMuted else RetroCardBorderLight,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp
                         )

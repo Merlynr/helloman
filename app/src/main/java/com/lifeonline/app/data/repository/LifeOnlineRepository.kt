@@ -3,20 +3,24 @@ package com.lifeonline.app.data.repository
 import android.content.Context
 import com.lifeonline.app.data.audio.VoiceRecorder
 import com.lifeonline.app.data.local.AppDatabase
-import java.io.File
 import com.lifeonline.app.data.model.BuffItem
+import com.lifeonline.app.data.model.Campaign
 import com.lifeonline.app.data.model.CharacterGenesisResult
 import com.lifeonline.app.data.model.DailyLog
 import com.lifeonline.app.data.model.DecomposedTask
+import com.lifeonline.app.data.model.LifeChapter
 import com.lifeonline.app.data.model.SettlementResult
 import com.lifeonline.app.data.model.TaskItem
 import com.lifeonline.app.data.model.TaskType
 import com.lifeonline.app.data.model.UserStats
 import com.lifeonline.app.data.remote.AiClient
-import com.lifeonline.app.data.sensor.SensorDataManager
 import com.lifeonline.app.data.remote.DaemonClient
+import com.lifeonline.app.data.sensor.SensorDataManager
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.firstOrNull
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -30,6 +34,15 @@ class LifeOnlineRepository(
     val sensorManager = SensorDataManager(context)
     val voiceRecorder = VoiceRecorder(context)
 
+    // 主题风格配置 (默认开启用户喜爱的暖白复古卡带风格)
+    private val themePrefs = context.getSharedPreferences("theme_settings", Context.MODE_PRIVATE)
+    val isCartridgeThemeFlow = MutableStateFlow(themePrefs.getBoolean("is_cartridge_theme", true))
+
+    fun setCartridgeTheme(enabled: Boolean) {
+        isCartridgeThemeFlow.value = enabled
+        themePrefs.edit().putBoolean("is_cartridge_theme", enabled).apply()
+    }
+
     suspend fun transcribeAudio(file: File): String {
         return aiClient.transcribeAudio(file)
     }
@@ -40,15 +53,59 @@ class LifeOnlineRepository(
     val buffsFlow: Flow<List<BuffItem>> = database.buffDao().getAllBuffsFlow()
     val stepsFlow: StateFlow<Int> = sensorManager.currentSteps
 
+    // 三层时间嵌套体系：阶段战役与人生篇章 Flow
+    val campaignsFlow: Flow<List<Campaign>> = database.campaignDao().getAllCampaignsFlow()
+    val activeCampaignFlow: Flow<Campaign?> = database.campaignDao().getActiveCampaignFlow()
+    val chaptersFlow: Flow<List<LifeChapter>> = database.lifeChapterDao().getAllChaptersFlow()
+    val activeChapterFlow: Flow<LifeChapter?> = database.lifeChapterDao().getActiveChapterFlow()
+
     suspend fun getUserStats(): UserStats {
         return database.userStatsDao().getUserStats() ?: UserStats()
+    }
+
+    /**
+     * 初始化或确保默认篇章与考公战役已就绪
+     */
+    suspend fun ensureDefaultDataSeeded() {
+        var chapter = database.lifeChapterDao().getActiveChapter()
+        var chapterId = chapter?.id ?: 0L
+        if (chapter == null) {
+            chapterId = database.lifeChapterDao().insertChapter(
+                LifeChapter(
+                    title = "25 ~ 35 岁 · 立业与职业护城河黄金十年",
+                    startAge = 25,
+                    endAge = 35,
+                    currentAge = 25,
+                    daysPassed = 319,
+                    description = "根据《高性价比人生指南》，25~35岁是个人核心技能定型、抗风险安全垫搭建的最关键窗口期。此时应防御优先于盲目盲干，全力攻坚体制或专业资质护城河。",
+                    focusAttributes = "TEC,GOLD,VIT",
+                    isActive = true
+                )
+            )
+        }
+
+        val existingCampaign = database.campaignDao().getActiveCampaign()
+        if (existingCampaign == null) {
+            database.campaignDao().insertCampaign(
+                Campaign(
+                    title = "2026 公务员考公上岸冲刺战役",
+                    description = "以国家与省公务员考试为目标，构筑体制内职业护城河。通过每日真题、法条背诵与申论模考，累计实战能力。",
+                    targetDate = "2026-12-01",
+                    currentProgress = 504,
+                    targetTotal = 1200,
+                    unit = "题",
+                    chapterId = chapterId,
+                    isActive = true,
+                    stageName = "阶段二：真题与模块题海冲刺"
+                )
+            )
+        }
     }
 
     /**
      * 角色初始化（经历录入 -> AI 生成五维属性与天生特质）
      */
     suspend fun initializeCharacter(historyInput: String): CharacterGenesisResult {
-        // 若配置了云端大模型 API Key (如智谱/DeepSeek)，优先直连云端大模型 (免开电脑、极速响应)
         val result = if (aiClient.apiKey.isNotBlank()) {
             aiClient.generateCharacterGenesis(historyInput)
         } else {
@@ -85,14 +142,52 @@ class LifeOnlineRepository(
         }
         database.buffDao().insertBuffs(buffItems)
 
-        // 默认预置一些高性价比人生指南日常微任务
+        // 默认预置高性价比微任务
         val defaultTasks = listOf(
-            TaskItem(title = "规律作息：7.5小时睡眠", description = "最廉价最高收益的免疫力防线", taskType = TaskType.DAILY, targetAttribute = "VIT", expReward = 20),
-            TaskItem(title = "轻量运动：快走或散步6000步", description = "促进血液循环与多巴胺分泌", taskType = TaskType.DAILY, targetAttribute = "VIT", expReward = 15),
-            TaskItem(title = "深度学习：心流专注1小时", description = "构筑个人专业壁垒", taskType = TaskType.DAILY, targetAttribute = "TEC", expReward = 20),
-            TaskItem(title = "低成本生活：记录今日每一笔开支", description = "建立现金流掌控感，避免拿铁因子", taskType = TaskType.DAILY, targetAttribute = "GOLD", expReward = 15)
+            TaskItem(
+                title = "完成 50 道行测真题 (言语与资料)",
+                description = "题感保持与错题总结",
+                taskType = TaskType.DAILY,
+                targetAttribute = "TEC",
+                expReward = 25,
+                campaignId = 1,
+                campaignTag = "🎯 2026考公",
+                campaignProgressAdd = 50
+            ),
+            TaskItem(
+                title = "背诵公安专业知识核心考点 30分钟",
+                description = "考点法条记忆强化",
+                taskType = TaskType.DAILY,
+                targetAttribute = "TEC",
+                expReward = 20,
+                campaignId = 1,
+                campaignTag = "🎯 2026考公",
+                campaignProgressAdd = 1
+            ),
+            TaskItem(
+                title = "规律作息：7.5小时睡眠",
+                description = "最廉价最高收益的免疫力防线",
+                taskType = TaskType.DAILY,
+                targetAttribute = "VIT",
+                expReward = 20
+            ),
+            TaskItem(
+                title = "轻量运动：快走或散步6000步",
+                description = "促进血液循环与多巴胺分泌",
+                taskType = TaskType.DAILY,
+                targetAttribute = "VIT",
+                expReward = 15
+            ),
+            TaskItem(
+                title = "低成本生活：记录今日每一笔开支",
+                description = "建立现金流掌控感，避免拿铁因子",
+                taskType = TaskType.DAILY,
+                targetAttribute = "GOLD",
+                expReward = 15
+            )
         )
         database.taskDao().insertTasks(defaultTasks)
+        ensureDefaultDataSeeded()
 
         return result
     }
@@ -105,9 +200,7 @@ class LifeOnlineRepository(
         val stepCount = stepsFlow.value
         val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
-        // 获取已完成任务
         val allTasks = mutableListOf<String>()
-        // 若配置了云端 API Key，优先直连云端大模型；否则优先电脑端 Daemon，最后离线规则
         val result = if (aiClient.apiKey.isNotBlank()) {
             aiClient.generateDailySettlement(currentStats, rawInput, stepCount, allTasks)
         } else {
@@ -115,7 +208,6 @@ class LifeOnlineRepository(
             daemonResult ?: aiClient.generateDailySettlement(currentStats, rawInput, stepCount, allTasks)
         }
 
-        // 经验累加与升级判定
         var newExp = currentStats.exp + result.expGained
         var newLevel = currentStats.level
         var newMaxExp = currentStats.maxExp
@@ -126,7 +218,6 @@ class LifeOnlineRepository(
             newMaxExp = (newMaxExp * 1.25f).toInt()
         }
 
-        // 属性更新 (限制在 1 - 999)
         val d = result.attributeDeltas
         val updatedStats = currentStats.copy(
             level = newLevel,
@@ -141,7 +232,6 @@ class LifeOnlineRepository(
         )
         database.userStatsDao().insertOrUpdate(updatedStats)
 
-        // 保存流水战报记录
         val dailyLog = DailyLog(
             dateString = todayStr,
             rawInput = rawInput,
@@ -159,7 +249,6 @@ class LifeOnlineRepository(
         )
         database.dailyLogDao().insertLog(dailyLog)
 
-        // 插入新的 Buff / Debuff
         val newBuffs = mutableListOf<BuffItem>()
         result.buffsApplied.forEach {
             newBuffs.add(BuffItem(name = it, description = "今日结算获得增益", isDebuff = false, remainingDays = 2))
@@ -174,25 +263,50 @@ class LifeOnlineRepository(
         return result
     }
 
+    /**
+     * 勾选任务打卡并自动联动战役进度！
+     */
     suspend fun toggleTask(task: TaskItem) {
-        val updated = task.copy(isCompleted = !task.isCompleted)
+        val willBeCompleted = !task.isCompleted
+        val updated = task.copy(isCompleted = willBeCompleted)
         database.taskDao().updateTask(updated)
+
+        // 若有关联阶段战役，联动增减战役进度
+        if (task.campaignId != null) {
+            val delta = if (task.campaignProgressAdd > 0) task.campaignProgressAdd else 1
+            val campaign = database.campaignDao().getCampaignById(task.campaignId)
+            if (campaign != null) {
+                val newProgress = if (willBeCompleted) {
+                    (campaign.currentProgress + delta).coerceAtMost(campaign.targetTotal)
+                } else {
+                    (campaign.currentProgress - delta).coerceAtLeast(0)
+                }
+                database.campaignDao().updateCampaign(campaign.copy(currentProgress = newProgress))
+            }
+        }
     }
 
-    suspend fun addTask(title: String, type: TaskType, attribute: String, exp: Int) {
+    suspend fun addTask(
+        title: String,
+        type: TaskType,
+        attribute: String,
+        exp: Int,
+        campaignId: Long? = null,
+        campaignTag: String = "",
+        progressAdd: Int = 0
+    ) {
         val task = TaskItem(
             title = title,
             taskType = type,
             targetAttribute = attribute,
-            expReward = exp
+            expReward = exp,
+            campaignId = campaignId,
+            campaignTag = campaignTag,
+            campaignProgressAdd = progressAdd
         )
         database.taskDao().insertTask(task)
     }
 
-    /**
-     * 语音或自然语言输入 -> AI 任务拆解
-     * 优先级：若有 API Key 优先直连大模型；次选电脑/云端 Daemon；最后离线规则引擎
-     */
     suspend fun decomposeInputToTasks(text: String): List<DecomposedTask> {
         return if (aiClient.apiKey.isNotBlank()) {
             aiClient.decomposeTasks(text)
@@ -202,22 +316,52 @@ class LifeOnlineRepository(
         }
     }
 
-    /**
-     * 批量插入拆解确认的任务
-     */
     suspend fun addBatchTasks(decomposedTasks: List<DecomposedTask>) {
+        val activeCampaign = database.campaignDao().getActiveCampaignFlow().firstOrNull()
         val taskItems = decomposedTasks.filter { it.isSelected && it.title.isNotBlank() }.map {
+            // 自动检测是否涉及考公/备考关键词
+            val isExamRelated = it.title.contains("题") || it.title.contains("行测") ||
+                                it.title.contains("申论") || it.title.contains("考公") ||
+                                it.title.contains("公安") || it.title.contains("做题") ||
+                                it.title.contains("真题")
+            val cId = if (isExamRelated && activeCampaign != null) activeCampaign.id else null
+            val cTag = if (isExamRelated) "🎯 2026考公" else ""
+            val cAdd = if (isExamRelated) 50 else 0
+
             TaskItem(
                 title = it.title,
                 taskType = it.taskType,
                 targetAttribute = it.targetAttribute,
                 expReward = it.expReward,
-                isCompleted = false
+                isCompleted = false,
+                campaignId = cId,
+                campaignTag = cTag,
+                campaignProgressAdd = cAdd
             )
         }
         if (taskItems.isNotEmpty()) {
             database.taskDao().insertTasks(taskItems)
         }
+    }
+
+    suspend fun boostCampaign(campaignId: Long, addAmount: Int = 10) {
+        val campaign = database.campaignDao().getCampaignById(campaignId)
+        if (campaign != null) {
+            val newProgress = (campaign.currentProgress + addAmount).coerceAtMost(campaign.targetTotal)
+            database.campaignDao().updateCampaign(campaign.copy(currentProgress = newProgress))
+        }
+    }
+
+    suspend fun updateCampaign(campaign: Campaign) {
+        database.campaignDao().updateCampaign(campaign)
+    }
+
+    suspend fun insertCampaign(campaign: Campaign): Long {
+        return database.campaignDao().insertCampaign(campaign)
+    }
+
+    suspend fun updateChapter(chapter: LifeChapter) {
+        database.lifeChapterDao().updateChapter(chapter)
     }
 
     suspend fun deleteTask(task: TaskItem) {

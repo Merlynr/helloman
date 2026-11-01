@@ -19,5 +19,8 @@ data class TaskItem(
     val targetAttribute: String = "VIT", // TEC, VIT, SAN, GOLD, REL
     val expReward: Int = 15,
     val isCompleted: Boolean = false,
-    val dateString: String = "" // 归属日期
+    val dateString: String = "",
+    val campaignId: Long? = null,
+    val campaignTag: String = "",         // e.g. "🎯 2026考公"
+    val campaignProgressAdd: Int = 0     // e.g. 50 题
 )

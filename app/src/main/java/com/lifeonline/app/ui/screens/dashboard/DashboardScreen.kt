@@ -34,6 +34,8 @@ import com.lifeonline.app.ui.components.BuffChip
 import com.lifeonline.app.ui.components.RadarChart
 import com.lifeonline.app.ui.components.RetroContainer
 import com.lifeonline.app.ui.components.StatBar
+import com.lifeonline.app.ui.theme.CartridgeBg
+import com.lifeonline.app.ui.theme.LocalIsCartridgeTheme
 import com.lifeonline.app.ui.theme.RetroAmber
 import com.lifeonline.app.ui.theme.RetroBlue
 import com.lifeonline.app.ui.theme.RetroCardBorder
@@ -55,10 +57,12 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
     val stats = userStats ?: UserStats()
     val latestLog = dailyLogs.firstOrNull()
 
+    val isCartridge = LocalIsCartridgeTheme.current
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(RetroDarkBg)
+            .background(if (isCartridge) CartridgeBg else RetroDarkBg)
             .padding(horizontal = 14.dp, vertical = 10.dp)
             .verticalScroll(rememberScrollState())
     ) {
