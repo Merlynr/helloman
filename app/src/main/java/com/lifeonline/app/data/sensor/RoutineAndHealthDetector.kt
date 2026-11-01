@@ -4,9 +4,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import com.lifeonline.app.LifeOnlineApp
+import com.lifeonline.app.data.local.AppDatabase
 import com.lifeonline.app.data.model.SedentaryStatus
 import com.lifeonline.app.data.model.SleepRecord
+import com.lifeonline.app.data.model.UserStats
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,7 +30,9 @@ import java.util.Locale
  */
 class RoutineAndHealthDetector(
     private val context: Context,
-    private val scope: CoroutineScope
+    private val database: AppDatabase,
+    private val scope: CoroutineScope,
+    private val onAchievementCheck: (suspend (UserStats, String) -> Unit)? = null
 ) {
     private val prefs = context.getSharedPreferences("routine_detector_prefs", Context.MODE_PRIVATE)
 
@@ -77,10 +80,9 @@ class RoutineAndHealthDetector(
 
     private fun loadPersistedState() {
         scope.launch(Dispatchers.IO) {
-            val repo = LifeOnlineApp.instance.repository
             val todayStr = getTodayDate()
-            val existing = repo.database.sleepRecordDao().getSleepRecordByDate(todayStr)
-                ?: repo.database.sleepRecordDao().getLatestSleepRecord()
+            val existing = database.sleepRecordDao().getSleepRecordByDate(todayStr)
+                ?: database.sleepRecordDao().getLatestSleepRecord()
             _latestSleepRecord.value = existing
         }
     }
@@ -205,21 +207,20 @@ class RoutineAndHealthDetector(
         )
 
         scope.launch(Dispatchers.IO) {
-            val repo = LifeOnlineApp.instance.repository
-            repo.database.sleepRecordDao().insertSleepRecord(record)
+            database.sleepRecordDao().insertSleepRecord(record)
             _latestSleepRecord.value = record
 
             // 更新用户属性
-            val stats = repo.getUserStats()
+            val stats = database.userStatsDao().getUserStats() ?: UserStats()
             val updatedStats = stats.copy(
                 vit = (stats.vit + vitDelta).coerceIn(0, 100),
                 hp = (stats.hp + hpDelta).coerceIn(0, 100)
             )
-            repo.database.userStatsDao().insertOrUpdate(updatedStats)
+            database.userStatsDao().insertOrUpdate(updatedStats)
 
             // 若触发熬夜，检查并点亮夜猫子相关成就
             if (isLateNight && (sleepHour in 1..4)) {
-                repo.checkAndUnlockAchievements(updatedStats, "熬夜 凌晨")
+                onAchievementCheck?.invoke(updatedStats, "熬夜 凌晨")
             }
         }
     }
@@ -298,7 +299,7 @@ class RoutineAndHealthDetector(
     fun dismissLatestSleepRecord() {
         val record = _latestSleepRecord.value ?: return
         scope.launch(Dispatchers.IO) {
-            LifeOnlineApp.instance.repository.database.sleepRecordDao().markDismissed(record.id)
+            database.sleepRecordDao().markDismissed(record.id)
             _latestSleepRecord.value = record.copy(isDismissed = true)
         }
     }

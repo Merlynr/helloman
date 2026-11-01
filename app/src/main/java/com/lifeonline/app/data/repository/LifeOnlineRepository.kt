@@ -48,7 +48,14 @@ class LifeOnlineRepository(
     val daemonClient = DaemonClient(context)
     val sensorManager = SensorDataManager(context)
     val voiceRecorder = VoiceRecorder(context)
-    val routineDetector = RoutineAndHealthDetector(context, repoScope)
+    val routineDetector = RoutineAndHealthDetector(
+        context = context,
+        database = database,
+        scope = repoScope,
+        onAchievementCheck = { stats, rawInput ->
+            checkAndUnlockAchievements(stats, rawInput)
+        }
+    )
 
     init {
         // 实时连通步数与久坐检测
