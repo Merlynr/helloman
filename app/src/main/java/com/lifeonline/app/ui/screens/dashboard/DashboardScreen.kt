@@ -97,6 +97,15 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
+                    if (stats.aiTitle.isNotBlank()) {
+                        Text(
+                            text = "✦ ${stats.aiTitle}",
+                            color = if (isCartridge) CartridgeGreen else RetroAmber,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
 
                 // 等级徽章 (卡带墨绿 vs 黑客暗黑)
@@ -152,7 +161,7 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
                 vit = stats.vit,
                 san = stats.san,
                 gold = stats.gold,
-                rel = stats.rel
+                rel = stats.bnd
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -162,11 +171,11 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
-                StatValueItem("智力 TEC", stats.tec, isCartridge)
-                StatValueItem("气血 VIT", stats.vit, isCartridge)
-                StatValueItem("心力 SAN", stats.san, isCartridge)
-                StatValueItem("财力 GOLD", stats.gold, isCartridge)
-                StatValueItem("人脉 REL", stats.rel, isCartridge)
+                StatValueItem("算力 TEC", stats.tec, isCartridge, stats.tecStreak)
+                StatValueItem("气血 VIT", stats.vit, isCartridge, stats.vitStreak)
+                StatValueItem("心力 SAN", stats.san, isCartridge, stats.sanStreak)
+                StatValueItem("财商 GOLD", stats.gold, isCartridge, stats.goldStreak)
+                StatValueItem("人脉 BND", stats.bnd, isCartridge, stats.bndStreak)
             }
         }
 
@@ -229,7 +238,7 @@ fun DashboardScreen(repository: LifeOnlineRepository) {
 }
 
 @Composable
-private fun StatValueItem(label: String, value: Int, isCartridge: Boolean) {
+private fun StatValueItem(label: String, value: Int, isCartridge: Boolean, streak: Int = 0) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = value.toString(),
@@ -245,5 +254,14 @@ private fun StatValueItem(label: String, value: Int, isCartridge: Boolean) {
             fontSize = 10.sp,
             fontWeight = FontWeight.Medium
         )
+        if (streak >= 3) {
+            Text(
+                text = "🔥${streak}d",
+                color = CartridgeAccentRed,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }

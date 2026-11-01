@@ -4,12 +4,14 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.lifeonline.app.data.local.dao.AchievementDao
 import com.lifeonline.app.data.local.dao.BuffDao
 import com.lifeonline.app.data.local.dao.CampaignDao
 import com.lifeonline.app.data.local.dao.DailyLogDao
 import com.lifeonline.app.data.local.dao.LifeChapterDao
 import com.lifeonline.app.data.local.dao.TaskDao
 import com.lifeonline.app.data.local.dao.UserStatsDao
+import com.lifeonline.app.data.model.Achievement
 import com.lifeonline.app.data.model.BuffItem
 import com.lifeonline.app.data.model.Campaign
 import com.lifeonline.app.data.model.DailyLog
@@ -24,9 +26,10 @@ import com.lifeonline.app.data.model.UserStats
         TaskItem::class,
         BuffItem::class,
         Campaign::class,
-        LifeChapter::class
+        LifeChapter::class,
+        Achievement::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -37,6 +40,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun buffDao(): BuffDao
     abstract fun campaignDao(): CampaignDao
     abstract fun lifeChapterDao(): LifeChapterDao
+    abstract fun achievementDao(): AchievementDao
 
     companion object {
         @Volatile

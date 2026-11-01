@@ -1648,6 +1648,21 @@ private fun TaskRowItem(
             )
         }
 
+        Spacer(modifier = Modifier.width(4.dp))
+
+        // EXP 标签
+        Text(
+            text = if (task.isCompleted) "EXP +${task.expReward}" else "EXP -${task.expReward / 2}",
+            color = if (task.isCompleted) {
+                if (isCartridge) CartridgeGreen else RetroGreenPrimary
+            } else {
+                CartridgeAccentRed
+            },
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 10.sp
+        )
+
         Spacer(modifier = Modifier.width(6.dp))
 
         IconButton(

@@ -20,13 +20,24 @@ data class UserStats(
     val vit: Int = 20,   // 气血 / 体魄 / 耐力
     val san: Int = 20,   // 心力 / 精神 / 意志
     val gold: Int = 20,  // 财力 / 资产 / 现金流
-    val rel: Int = 20,   // 人脉 / 社交 / 亲密关系
+    val bnd: Int = 20,   // 人脉 / 社交 / 亲密关系
 
     // 生存槽位
     val hp: Int = 100,
     val maxHp: Int = 100,
     val mp: Int = 100,
     val maxMp: Int = 100,
+
+    // Streak 打卡连续天数
+    val vitStreak: Int = 0,     // 气血连续打卡（早起/运动）
+    val tecStreak: Int = 0,     // 算力连续打卡（学习）
+    val sanStreak: Int = 0,     // 心力连续打卡（冥想）
+    val goldStreak: Int = 0,    // 财商连续打卡（记账）
+    val bndStreak: Int = 0,     // 人脉连续打卡（社交）
+    val lastStreakDate: String = "", // 上次打卡日期 yyyy-MM-dd
+
+    // AI 生成的动态称号，区别于 title
+    val aiTitle: String = "",
 
     // 是否已完成初始化经历录入
     val isInitialized: Boolean = false,

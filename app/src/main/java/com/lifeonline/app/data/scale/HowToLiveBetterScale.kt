@@ -78,7 +78,7 @@ $userInput
         return """
 当前角色状态：
 - 角色称号：${currentStats.title} (Lv.${currentStats.level})
-- 五维属性：TEC=${currentStats.tec}, VIT=${currentStats.vit}, SAN=${currentStats.san}, GOLD=${currentStats.gold}, REL=${currentStats.rel}
+- 五维属性：TEC=${currentStats.tec}, VIT=${currentStats.vit}, SAN=${currentStats.san}, GOLD=${currentStats.gold}, REL=${currentStats.bnd}
 
 今日安卓端自动采集与完成情况：
 - 传感器步数：$stepCount 步
