@@ -43,31 +43,44 @@
 
 ## 🚀 方式一：云服务器 (Linux VPS) + Cloudflare Tunnel 部署（推荐）
 
-### 第一步：将服务端代码上传至服务器并启动
+### 第一步：通过 GitHub 在服务器上一键安装并启动
 
-1. **进入服务器，克隆或上传项目代码**：
-   ```bash
-   # 上传后进入 server 目录
-   cd /path/to/helloman/server
-   ```
+#### 选项 A：GitHub 一键远程直装（极简，直接在 VPS 上粘贴单行命令）
+登录你的 Linux 服务器后，直接运行以下命令：
+```bash
+curl -fsSL https://raw.githubusercontent.com/Merlynr/helloman/master/server/deploy.sh | sudo bash
+```
 
-2. **赋予脚本执行权限并一键安装**：
-   项目内已预置自动化系统服务部署脚本 [`server/deploy.sh`](file:///e:/project/helloman/server/deploy.sh)：
-   ```bash
-   chmod +x deploy.sh
-   sudo ./deploy.sh
-   ```
-   > 该脚本会自动：
-   > - 安装系统环境（Python3, pip, venv）；
-   > - 将应用部署至 `/opt/lifeonline`；
-   > - 安装 Python 依赖（FastAPI, Uvicorn）；
-   > - 注册并启动 Systemd 守护服务 `lifeonline.service`，实现开机自启与崩溃自愈。
+#### 选项 B：Git Clone 仓库后安装
+如果你习惯先拉取完整仓库：
+```bash
+# 1. 克隆 GitHub 仓库
+git clone https://github.com/Merlynr/helloman.git /opt/lifeonline
 
-3. **验证本地服务运行情况**：
-   ```bash
-   curl http://127.0.0.1:8080/
-   # 正常应返回: {"status":"running","service":"LifeOnline Agent Daemon",...}
-   ```
+# 2. 进入 server 目录并执行一键安装脚本
+cd /opt/lifeonline/server
+sudo ./deploy.sh
+```
+
+> **自动化脚本已为你处理所有细节**：
+> - 自动安装系统环境（Git, Python3, pip, venv）；
+> - 自动拉取或更新 GitHub 仓库到 `/opt/lifeonline`；
+> - 自动创建 Python 独立虚拟环境并安装 FastAPI 等全部依赖；
+> - 自动初始化 Markdown 第二大脑智库持久化目录 `/opt/lifeonline/server/data`；
+> - 自动注册 Systemd 系统级守护服务 `lifeonline.service`，实现开机自启、崩溃自动重启与常驻后台。
+
+#### 验证本地服务运行情况
+```bash
+curl http://127.0.0.1:8080/
+# 正常应返回: {"status":"running","service":"LifeOnline Agent Daemon",...}
+```
+
+#### 后续如何从 GitHub 更新？
+当你在开发机推送了新代码后，在服务器上一键更新即可：
+```bash
+cd /opt/lifeonline && git pull && sudo systemctl restart lifeonline
+```
+或者再次执行 `sudo ./deploy.sh` 即可自动拉取更新并热重启。
 
 ---
 

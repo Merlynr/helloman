@@ -50,7 +50,12 @@
 > 📖 **完整详尽的一键部署手册请查看**：[**服务端与 Cloudflare 部署文档 (DEPLOYMENT.md)**](file:///e:/project/helloman/DEPLOYMENT.md)
 
 ### 极速部署三步法：
-1. **Linux 服务器一键启动**：执行 [`server/deploy.sh`](file:///e:/project/helloman/server/deploy.sh)，自动创建 Python 虚拟环境并注册为 `systemd` 系统守护服务。
+1. **Linux 服务器从 GitHub 一键直装**：
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/Merlynr/helloman/master/server/deploy.sh | sudo bash
+   ```
+   *(或使用 `git clone https://github.com/Merlynr/helloman.git /opt/lifeonline && cd /opt/lifeonline/server && sudo ./deploy.sh`)*
+   > 该脚本会自动拉取代码、构建独立 Python 虚拟环境、安装依赖并将服务注册为开机自启常驻后台守护进程。
 2. **Cloudflare Tunnel 穿透**：安装 `cloudflared`，执行 `cloudflared tunnel --url http://127.0.0.1:8080` 生成安全的公网 HTTPS 访问域名（免公网 IP、免开防火墙端口）。
 3. **手机 App 配置**：在 App【配置】页填入获得的 Cloudflare HTTPS 地址，一键测试连通！
 
